@@ -2,7 +2,7 @@ import event
 import sys
 import h5py
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 def dfdE(e, T, M):
 	return np.exp(-e/T)*np.sqrt(e**2-M**2)*e
@@ -25,9 +25,18 @@ def corner(ds, ranges, bins=50):
 
 
 e1 = event.event(sys.argv[1])
-e1.initialize_HQ()
-for i in range(10):
+e1.initialize_HQ(NQ=10000)
+v2 = []
+for i in range(110):
+	print i
 	e1.perform_hydro_step()
+	a = e1.plot_xy()
+	print a
+	v2.append(a)
+plt.plot(v2)
+print v2
+plt.show()
+
 
 """
 ds = h5py.File("history.hdf5", 'r')

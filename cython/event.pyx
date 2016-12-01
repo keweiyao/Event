@@ -10,6 +10,9 @@ from libc.stdlib cimport rand, RAND_MAX
 from libc.math cimport *
 import matplotlib.pyplot as plt
 from cython.operator cimport dereference as deref, preincrement as inc
+import numpy as np
+
+cdef double GeVm1_to_fmc = 0.197
 
 #------------Import c++ utility function for rotation and transformation-----------
 cdef extern from "../src/utility.h":
@@ -99,8 +102,10 @@ cdef class event:
 	cdef vector[particle] active_HQ
 	cdef vector[particle] frzout_HQ
 	cdef double tau0, dtau, tau
+	X = []
+	Y = []
 	
-	def __cinit__(self, hydrofile, mass=1.3, elastic=True, inelastic=False, table_folder='./tables'):
+	def __cinit__(self, hydrofile, mass=1.3, elastic=True, inelastic=True, table_folder='./tables'):
 		self.M = mass
 		self.hydro_reader = medium.Medium(hydrofile)
 		self.hqsample = HqEvo.HqEvo(mass=mass, elastic=elastic, inelastic=inelastic, table_folder=table_folder)
@@ -114,15 +119,14 @@ cdef class event:
 		self.active_HQ.resize(NQ)
 		cdef double pt, phipt, r, phir, E, pz, free_time
 		cdef particle Q
-		px = []
-		py = []
-		px1 = []
-		py1 = []
+		
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		while it != self.active_HQ.end():
-			pt = sqrt((2500.*rand())/RAND_MAX)
+			self.X.append([])
+			self.Y.append([])
+			pt = sqrt(1.0 + (8.*rand())/RAND_MAX)
 			phipt = (2.*M_PI*rand())/RAND_MAX
-			r = sqrt((16.*rand())/RAND_MAX)
+			r = sqrt((4.*rand())/RAND_MAX)
 			phir = (2.*M_PI*rand())/RAND_MAX
 			E = sqrt(self.M**2 + pt**2)
 			pz = 0.0
@@ -136,26 +140,49 @@ cdef class event:
 	cpdef perform_hydro_step(self):
 		self.hydro_reader.load_next()
 		self.tau += self.dtau
-		cdef double t, x, y, z, T, vx, vy, vz, dt_max=0.2, dt, dt1, dt2
+		cdef double t, x, y, z, T, vx, vy, vz, dt, dt1, dt2
+		cdef vector[double] pnew
+		pnew.resize(4)
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		while it != self.active_HQ.end():
 			t, x, y, z = deref(it).x
 			tauQ = sqrt(t**2 - z**2)
 			while (tauQ < self.tau):
-                                T, vx, vy = self.hydro_reader.interpF(tauQ, [x, y], ['Temp', 'Vx', 'Vy'])
-                                vz = z/t
-                                print self.update_HQ(deref(it).p, [vx, vy, vz], T, dt_max)
-                                dt1 = (dt*rand())/RAND_MAX
+				#Note that this vx and vy are at mid-rapidity and need to be boosted to obtain the solution at forward and backward rapidity
+				T, vx, vy = self.hydro_reader.interpF(tauQ, [x, y], ['Temp', 'Vx', 'Vy'])
+				vz = z/t
+				# boost to get the solution at (t, x, y, z)
+				gamma = 1.0/sqrt(1.0-vz*vz)
+				vx = vx/gamma
+				vy = vy/gamma
+				
+				dt, pnew = self.update_HQ(deref(it).p, [vx, vy, vz], T)
+				dt *= GeVm1_to_fmc/2.
+				dt1 = (dt*rand())/RAND_MAX
 				dt2 = dt - dt1
 				deref(it).x = freestream(deref(it).x, deref(it).p, dt1)
 				deref(it).x = freestream(deref(it).x, pnew, dt2)
 				deref(it).p = pnew
 				t, x, y, z = deref(it).x
 				tauQ = sqrt(t**2 - z**2)
-				inc(it)
+			inc(it)
+
+	def plot_xy(self):
+		px = []
+		py = []
+		cdef vector[particle].iterator it = self.active_HQ.begin()
+		while it != self.active_HQ.end():
+			px.append(deref(it).p[1])
+			py.append(deref(it).p[2])
+			inc(it)
+		
+		px = np.array(px)
+		py = np.array(py)
+		return np.mean((px**2-py**2)/(px**2+py**2))
+
 
 	
-	cpdef update_HQ(self, vector[double] p1, vector[double] v3cell, double Temp, double dt_max):
+	cpdef update_HQ(self, vector[double] p1, vector[double] v3cell, double Temp):
 		# Define local variables
 		cdef double E1_cell, alpha1_cell, beta1_cell, gamma1_cell, E2_cell, s
 		cdef double alpha_com, beta_com, gamma_com
@@ -171,10 +198,10 @@ cdef class event:
 		gamma1_cell = 0.0
 
 		# Sample channel in cell, constrained by dt_max
-		channel, dt = self.hqsample.sample_channel(E1_cell, Temp, dt_max)
+		channel, dt = self.hqsample.sample_channel(E1_cell, Temp)
 
 		if channel < 0:
-			return p1
+			return dt, p1
 	
 		# Sample E2_cell, s in cell
 		E2_cell, s = self.hqsample.sample_initial(channel, E1_cell, Temp)
@@ -221,7 +248,7 @@ cdef class event:
 		cdef vector[double] p1_new = boost4_By3(p1_new_cell, rv3cell)
 	
 		# return updated momentum of heavy quark
-		return p1_new
+		return dt, p1_new
 
 
 
