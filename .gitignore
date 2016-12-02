@@ -2,3 +2,5 @@ build/
 *.so
 *.hdf5
 *.h5
+cython/*.c
+cython/*.cpp

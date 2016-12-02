@@ -24,18 +24,18 @@ def corner(ds, ranges, bins=50):
 				plt.ylim(ranges[i,0], ranges[i,1])
 
 
-e1 = event.event(sys.argv[1])
+e1 = event.event(sys.argv[1], inelastic=True)
 e1.initialize_HQ(NQ=10000)
 v2 = []
-for i in range(110):
+for i in range(300):
 	print i
 	e1.perform_hydro_step()
-	a = e1.plot_xy()
-	print a
-	v2.append(a)
-plt.plot(v2)
-print v2
-plt.show()
+	#a = e1.plot_xy()
+	#print a
+	#v2.append(a)
+#plt.plot(v2)
+#print v2
+#plt.show()
 
 
 """

@@ -105,7 +105,7 @@ cdef class event:
 	X = []
 	Y = []
 	
-	def __cinit__(self, hydrofile, mass=1.3, elastic=True, inelastic=True, table_folder='./tables'):
+	def __cinit__(self, hydrofile=None, mass=1.3, elastic=True, inelastic=False, table_folder='./tables'):
 		self.M = mass
 		self.hydro_reader = medium.Medium(hydrofile)
 		self.hqsample = HqEvo.HqEvo(mass=mass, elastic=elastic, inelastic=inelastic, table_folder=table_folder)
@@ -157,7 +157,7 @@ cdef class event:
 				vy = vy/gamma
 				
 				dt, pnew = self.update_HQ(deref(it).p, [vx, vy, vz], T)
-				dt *= GeVm1_to_fmc/2.
+				dt *= GeVm1_to_fmc
 				dt1 = (dt*rand())/RAND_MAX
 				dt2 = dt - dt1
 				deref(it).x = freestream(deref(it).x, deref(it).p, dt1)
@@ -168,17 +168,27 @@ cdef class event:
 			inc(it)
 
 	def plot_xy(self):
-		px = []
-		py = []
+		x = []
+		y = []
+		plt.clf()
 		cdef vector[particle].iterator it = self.active_HQ.begin()
+		A = self.hydro_reader.get_current_frame('Temp')
+		plt.imshow(np.flipud(A), extent = [-15, 15, -15, 15])
+		cb = plt.colorbar()
+		cb.set_label(r'$T$ [GeV]')
 		while it != self.active_HQ.end():
-			px.append(deref(it).p[1])
-			py.append(deref(it).p[2])
+			x.append(deref(it).x[1])
+			y.append(deref(it).x[2])
 			inc(it)
 		
-		px = np.array(px)
-		py = np.array(py)
-		return np.mean((px**2-py**2)/(px**2+py**2))
+		x = np.array(x)
+		y = np.array(y)
+		plt.scatter(x, y)
+		plt.axis([-15, 15, -15, 15])
+		plt.xlabel(r"$x$ [fm]")
+		plt.ylabel(r"$y$ [fm]")
+		plt.savefig("figs/%1.3f.png"%self.tau)
+		plt.pause(0.1)
 
 
 	
