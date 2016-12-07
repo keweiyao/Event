@@ -1,31 +1,40 @@
 import sys
-sys.path.append('../HQ-Evo/')
-sys.path.append('../Medium-Reader')
-import HqEvo
-import medium
-import h5py
 from libcpp cimport bool
 from libcpp.vector cimport vector
 from libc.stdlib cimport rand, RAND_MAX
 from libc.math cimport *
-import matplotlib.pyplot as plt
 from cython.operator cimport dereference as deref, preincrement as inc
 import numpy as np
+import matplotlib.pyplot as plt
+sys.path.append('../HQ-Evo/')
+sys.path.append('../Medium-Reader')
+import HqEvo
+import medium
+from event cimport *
 
 cdef double GeVm1_to_fmc = 0.197
 
-#------------Import c++ utility function for rotation and transformation-----------
-cdef extern from "../src/utility.h":
-	cdef double product4(const vector[double] & A, const vector[double] & B)
-	cdef void print4vec(const vector[double] & A)
-	cdef void rotate_Euler(const vector[double] & A, vector[double] & Ap, double alpha, double beta, double gamma)
-	cdef void rotate_axis(const vector[double] & A, vector[double] & Ap, double alpha, unsigned int dir)
-	cdef void boost_by3(const vector[double] & A, vector[double] & Ap, const vector[double] v)
-	cdef void boost_by4(const vector[double] & A, vector[double] & Ap, const vector[double] u)
-	cdef void boost_axis(const vector[double] & A, vector[double] & Ap, const double vd, unsigned int dir)
-	cdef void go_to_CoM(const vector[double] & Pcom,
-			   const vector[double] & A, const vector[double] & B,
-			   vector[double] & Ap, vector[double] & Bp);
+#-------------Thermal distribution function----------------------------------------
+def dfdE(e, T, M):
+	return np.exp(-e/T)*np.sqrt(e**2-M**2)*e
+
+def dfdp(p, T, M):
+	x = np.sqrt(p**2+M**2)/T
+	return (x+1.)*np.exp(-x)
+
+#-------------Corner plot function-------------------------------------------------
+def corner(ds, ranges, bins=50):
+	N = ds.shape[0]
+	for i in range(N):
+		for j in range(i+1):
+			plt.subplot(N, N, i*N+j+1)
+			if i==j:
+				plt.hist(ds[i], bins=bins, range=[ranges[i,0], ranges[i,1]], histtype='step', normed=True)
+				plt.xlim(ranges[i,0], ranges[i,1])
+			else:
+				plt.hist2d(ds[j], ds[i], range=[[ranges[j,0], ranges[j,1]],[ranges[i,0], ranges[i,1]]], bins=bins)
+				plt.xlim(ranges[j,0], ranges[j,1])
+				plt.ylim(ranges[i,0], ranges[i,1])
 
 #-------------C/Python Wrapper functions--------------------------------------------
 cpdef double dot4(vector[double] & A, vector[double] & B):
@@ -90,14 +99,13 @@ cdef extern from "../src/utility.h":
 		double T_dec
 		vector[double] v_dec
 		particle()
-
 #-----------Event Class---------------------------------------------
 cpdef freestream(vector[double] & x, vector[double] & p, double & dt):
 	cdef vector[double] xnew = [x[0]+dt, x[1]+p[1]/p[0]*dt, x[2]+p[2]/p[0]*dt, x[3]+p[3]/p[0]*dt]
 	return xnew
 
 cdef class event:
-	cdef object hydro_reader, hqsample
+	cdef object hydro_reader, hqsample, mode
 	cdef double M
 	cdef vector[particle] active_HQ
 	cdef vector[particle] frzout_HQ
@@ -105,9 +113,10 @@ cdef class event:
 	X = []
 	Y = []
 	
-	def __cinit__(self, hydrofile=None, mass=1.3, elastic=True, inelastic=False, table_folder='./tables'):
+	def __cinit__(self, mode="dynamic", hydrofile=None, mass=1.3, elastic=True, inelastic=False, table_folder='./tables'):
+		self.mode = mode
 		self.M = mass
-		self.hydro_reader = medium.Medium(hydrofile)
+		self.hydro_reader = medium.Medium(mode=mode, hydrofilename=hydrofile)
 		self.hqsample = HqEvo.HqEvo(mass=mass, elastic=elastic, inelastic=inelastic, table_folder=table_folder)
 		self.tau0 = self.hydro_reader.init_tau()
 		self.dtau = self.hydro_reader.dtau()
@@ -120,11 +129,13 @@ cdef class event:
 		cdef double pt, phipt, r, phir, E, pz, free_time
 		cdef particle Q
 		
+		if XY_table==None and Pweight==None:
+			print "Use default initialization pro"
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		while it != self.active_HQ.end():
 			self.X.append([])
 			self.Y.append([])
-			pt = sqrt(1.0 + (8.*rand())/RAND_MAX)
+			pt = sqrt((9.*rand())/RAND_MAX)
 			phipt = (2.*M_PI*rand())/RAND_MAX
 			r = sqrt((4.*rand())/RAND_MAX)
 			phir = (2.*M_PI*rand())/RAND_MAX
@@ -136,62 +147,79 @@ cdef class event:
 			# free streaming to hydro starting time
 			deref(it).x = freestream(deref(it).x, deref(it).p, free_time)
 			inc(it)
-	
-	cpdef perform_hydro_step(self):
-		self.hydro_reader.load_next()
+
+	cdef perform_HQ_step(self, vector[particle].iterator it):
+		t, x, y, z = deref(it).x
+		tauQ = sqrt(t**2 - z**2)
+		T, vx, vy, vz = self.hydro_reader.interpF(tauQ, [x, y, z, t], ['Temp', 'Vx', 'Vy', 'Vz'])		
+		dt, pnew = self.update_HQ(deref(it).p, [vx, vy, vz], T)
+		dt *= GeVm1_to_fmc
+		dt1 = (dt*rand())/RAND_MAX
+		dt2 = dt - dt1
+		deref(it).x = freestream(deref(it).x, deref(it).p, dt1)
+		deref(it).x = freestream(deref(it).x, pnew, dt2)
+		deref(it).p = pnew
+
+	cpdef perform_hydro_step(self, StaticPropertyDictionary=None):
+		status = True
+		if self.mode == 'dynamic':
+			status = self.hydro_reader.load_next()
+		if self.mode == 'static':
+			status = self.hydro_reader.load_next(StaticPropertyDictionary=StaticPropertyDictionary)
 		self.tau += self.dtau
 		cdef double t, x, y, z, T, vx, vy, vz, dt, dt1, dt2
 		cdef vector[double] pnew
 		pnew.resize(4)
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		while it != self.active_HQ.end():
-			t, x, y, z = deref(it).x
-			tauQ = sqrt(t**2 - z**2)
-			while (tauQ < self.tau):
-				#Note that this vx and vy are at mid-rapidity and need to be boosted to obtain the solution at forward and backward rapidity
-				T, vx, vy = self.hydro_reader.interpF(tauQ, [x, y], ['Temp', 'Vx', 'Vy'])
-				vz = z/t
-				# boost to get the solution at (t, x, y, z)
-				gamma = 1.0/sqrt(1.0-vz*vz)
-				vx = vx/gamma
-				vy = vy/gamma
-				
-				dt, pnew = self.update_HQ(deref(it).p, [vx, vy, vz], T)
-				dt *= GeVm1_to_fmc
-				dt1 = (dt*rand())/RAND_MAX
-				dt2 = dt - dt1
-				deref(it).x = freestream(deref(it).x, deref(it).p, dt1)
-				deref(it).x = freestream(deref(it).x, pnew, dt2)
-				deref(it).p = pnew
+			if self.mode == 'static':
+				self.perform_HQ_step(it)
+			if self.mode == 'dynamic':
 				t, x, y, z = deref(it).x
 				tauQ = sqrt(t**2 - z**2)
+				while (tauQ < self.tau):
+					self.perform_HQ_step(it)
+					t, x, y, z = deref(it).x
+					tauQ = sqrt(t**2 - z**2)
 			inc(it)
+		return status
 
-	def plot_xy(self):
-		x = []
-		y = []
+	def HQ_hist(self):
+		x, y, z = [], [], []
+		E, px, py, pz = [], [], [], []
 		plt.clf()
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		A = self.hydro_reader.get_current_frame('Temp')
-		plt.imshow(np.flipud(A), extent = [-15, 15, -15, 15])
-		cb = plt.colorbar()
-		cb.set_label(r'$T$ [GeV]')
+		#plt.imshow(np.flipud(A), extent = [-15, 15, -15, 15])
+		#cb = plt.colorbar()
+		#cb.set_label(r'$T$ [GeV]')
+		while it != self.active_HQ.end():
+			E.append(deref(it).p[0])
+			px.append(deref(it).p[1])
+			py.append(deref(it).p[2])
+			pz.append(deref(it).p[3])
+			inc(it)
+		E = np.array(E); px = np.array(px); py = np.array(py); pz = np.array(pz)
+		corner(np.array([E, px, py, pz]), ranges=np.array([[0,6], [-4,4], [-4,4], [-4,4]]))
+		plt.pause(0.02)
+
+	def HQ_xy(self):
+		x, y = [], []
+		plt.clf()
+		cdef vector[particle].iterator it = self.active_HQ.begin()
+		if self.mode == 'dynamic':
+			A = self.hydro_reader.get_current_frame('Temp')
+			XL, XH, YL, YH = self.hydro_reader.boundary()
+			plt.imshow(np.flipud(A), extent = [XL, XH, YL, YH])
+			cb = plt.colorbar()
+			cb.set_label(r'$T$ [GeV]')
 		while it != self.active_HQ.end():
 			x.append(deref(it).x[1])
 			y.append(deref(it).x[2])
 			inc(it)
-		
-		x = np.array(x)
-		y = np.array(y)
 		plt.scatter(x, y)
-		plt.axis([-15, 15, -15, 15])
-		plt.xlabel(r"$x$ [fm]")
-		plt.ylabel(r"$y$ [fm]")
-		plt.savefig("figs/%1.3f.png"%self.tau)
-		plt.pause(0.1)
+		plt.pause(0.02)
 
-
-	
 	cpdef update_HQ(self, vector[double] p1, vector[double] v3cell, double Temp):
 		# Define local variables
 		cdef double E1_cell, alpha1_cell, beta1_cell, gamma1_cell, E2_cell, s
