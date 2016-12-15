@@ -112,12 +112,13 @@ cdef class event:
 	cdef double tau0, dtau, tau
 	X = []
 	Y = []
+	C = []
 	
-	def __cinit__(self, mode="dynamic", hydrofile=None, mass=1.3, elastic=True, inelastic=False, table_folder='./tables'):
+	def __cinit__(self, mode="dynamic", hydrofile=None, mass=1.3, elastic=True, inelastic=False, detailed_balance=False, table_folder='./tables'):
 		self.mode = mode
 		self.M = mass
 		self.hydro_reader = medium.Medium(mode=mode, hydrofilename=hydrofile)
-		self.hqsample = HqEvo.HqEvo(mass=mass, elastic=elastic, inelastic=inelastic, table_folder=table_folder)
+		self.hqsample = HqEvo.HqEvo(mass=mass, elastic=elastic, inelastic=inelastic, detailed_balance=detailed_balance, table_folder=table_folder)
 		self.tau0 = self.hydro_reader.init_tau()
 		self.dtau = self.hydro_reader.dtau()
 		self.tau = self.tau0
@@ -152,6 +153,7 @@ cdef class event:
 			inc(it)
 
 	cpdef perform_hydro_step(self, StaticPropertyDictionary=None):
+
 		status = True
 		if self.mode == 'dynamic':
 			status = self.hydro_reader.load_next()
@@ -187,6 +189,7 @@ cdef class event:
 		T, vx, vy, vz = self.hydro_reader.interpF(tauQ, [x, y, z, t], ['Temp', 'Vx', 'Vy', 'Vz'])		
 		channel, dt, pnew = self.update_HQ(deref(it).p, [vx, vy, vz], T, t_elapse_lab)
 		dt *= GeVm1_to_fmc
+		self.C.append(channel)
 		if channel < 0:
 			deref(it).x = freestream(deref(it).x, deref(it).p, dt)
 		else:
@@ -284,7 +287,7 @@ cdef class event:
 		E, px, py, pz = [], [], [], []
 		plt.clf()
 		cdef vector[particle].iterator it = self.active_HQ.begin()
-		A = self.hydro_reader.get_current_frame('Temp')
+		#A = self.hydro_reader.get_current_frame('Temp')
 		#plt.imshow(np.flipud(A), extent = [-15, 15, -15, 15])
 		#cb = plt.colorbar()
 		#cb.set_label(r'$T$ [GeV]')
@@ -296,6 +299,8 @@ cdef class event:
 			inc(it)
 		E = np.array(E); px = np.array(px); py = np.array(py); pz = np.array(pz)
 		corner(np.array([E, px, py, pz]), ranges=np.array([[0,6], [-4,4], [-4,4], [-4,4]]))
+		#"""
+		#plt.hist(self.C)
 		plt.pause(0.02)
 
 	def HQ_xy(self):

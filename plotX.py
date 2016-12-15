@@ -12,13 +12,14 @@ x1 = np.loadtxt('./tables/XQq2Qq.dat').reshape(100, 16).T
 x2 = np.loadtxt('./tables/XQg2Qg.dat').reshape(100, 16).T
 x3 = np.loadtxt('./tables/XQq2Qqg.dat').reshape(100, 16, 10).T
 x4 = np.loadtxt('./tables/XQg2Qgg.dat').reshape(100, 16, 10).T
-index = 9
+index = 4
 for i, T in enumerate(tr):
 	plt.plot(sx, x1[i]*T**2, 'r-')
 	plt.plot(sx, x2[i]*T**2, 'g-')
-	plt.plot(sx, x3[index, i]/dtr[index]**2, 'b-')
-	plt.plot(sx, x4[index, i]/dtr[index]**2, 'y-')
-plt.semilogy()
+	plt.plot(sx, x3[index, i], 'b-')
+	plt.plot(sx, x4[index, i], 'y-')
+
+#plt.semilogy()
 plt.show()
 
 
@@ -31,14 +32,14 @@ def myplot(folder, scale=1.0):
 	r3 = np.loadtxt('./%s/RQq2Qqg.dat'%folder).reshape(100, 16, 10).T/scale
 	r4 = np.loadtxt('./%s/RQg2Qgg.dat'%folder).reshape(100, 16, 10).T/scale
 	step = 1
-	index = 1
+	index = 5
 	print dtr
 	for i, T in enumerate(tr[::step]):
 		plt.plot(Er, r1[i*step], 'r-', label=r'$Qq\rightarrow Qq$' if i==0 else '')
 		plt.plot(Er, r2[i*step], 'g-', label=r'$Qg\rightarrow Qg$' if i==0 else '')
 		plt.plot(Er, r3[index, i*step], 'b-', label=r'$Qq\rightarrow Qqg$' if i==0 else '')
 		plt.plot(Er, r4[index, i*step], 'y-', label=r'$Qg\rightarrow Qgg$' if i==0 else '')
-	plt.semilogy()
+	#plt.semilogy()
 
 plt.figure(figsize=(15, 6))
 

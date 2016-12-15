@@ -20,10 +20,10 @@ medium = {'Temp': 0.5,
 # 6. table = where to put the tabulated cross-secitons and scattering rates.
 
 # Static Meidum, only elastic
-#e1 = event.event(mode='static', inelastic=False)
+e1 = event.event(mode='static', inelastic=False)
 
 # Static Meidum, elastic + inelastic
-e1 = event.event(mode='static', inelastic=True)
+#e1 = event.event(mode='static', elastic=True, inelastic=True)
 
 # Dynamic Meidum, only elastic
 #e1 = event.event(mode='dynamic', hydrofile=sys.argv[1], inelastic=False)
@@ -33,8 +33,8 @@ e1 = event.event(mode='static', inelastic=True)
 
 e1.initialize_HQ(NQ=100)
 
-plt.figure(figsize=(15, 15))
-for i in range(500):
+plt.figure(figsize=(10, 10))
+for i in range(1000):
 	print "t = ", e1.sys_time()
 	status = e1.perform_hydro_step(StaticPropertyDictionary=medium)
 	#e1.HQ_hist()
