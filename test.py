@@ -20,7 +20,7 @@ medium = {'Temp': 0.5,
 # 6. table = where to put the tabulated cross-secitons and scattering rates.
 
 # Static Meidum, only elastic
-e1 = event.event(mode='static', inelastic=False)
+e1 = event.event(mode='static', inelastic=True, detailed_balance=True)
 
 # Static Meidum, elastic + inelastic
 #e1 = event.event(mode='static', elastic=True, inelastic=True)

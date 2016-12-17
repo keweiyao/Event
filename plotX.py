@@ -4,20 +4,33 @@ import sys
 #folder = sys.argv[1]
 M = 1.3
 M2 = M**2
+GeVm2_to_mb = 0.3849
+s12 = np.concatenate([np.linspace(1.01*M, 5.*M, 50), np.linspace(5.*M2, 30.*M, 50)])
+s34 = np.linspace(1.01*M, 30.*M, 50)
+s56 = np.linspace(1.01*M, 10.*M, 10)
+t12 = np.linspace(0.1, 0.8, 32)
+t34 = np.linspace(0.1, 0.8, 16)
+t56 = np.linspace(0.1, 0.8, 10)
+x1 = np.loadtxt('./tables/XQq2Qq.dat').reshape(100, 32).T*GeVm2_to_mb
+x2 = np.loadtxt('./tables/XQg2Qg.dat').reshape(100, 32).T*GeVm2_to_mb
+x3 = np.loadtxt('./tables/XQq2Qqg.dat').reshape(50, 16, 10).T*GeVm2_to_mb
+x4 = np.loadtxt('./tables/XQg2Qgg.dat').reshape(50, 16, 10).T*GeVm2_to_mb
+f5 = np.loadtxt('./tables/XQqg2Qq.dat').reshape(10, 10, 10, 10).T
+f6 = np.loadtxt('./tables/XQgg2Qg.dat').reshape(10, 10, 10, 10).T
+index= 9
+index1 = 9
+index2 = 9
+for i, T in enumerate(t12):
+	plt.plot(s12, x1[i], 'ro-')
+	plt.plot(s12, x2[i], 'go-')
 
-sx = np.concatenate([np.linspace(1.01*M2, 25.*M2, 50), np.linspace(25.*M2, 900.*M2, 50)])**0.5
-tr = np.linspace(0.12, 0.8, 16)
-dtr = np.linspace(0.1, 10., 10.)
-x1 = np.loadtxt('./tables/XQq2Qq.dat').reshape(100, 16).T
-x2 = np.loadtxt('./tables/XQg2Qg.dat').reshape(100, 16).T
-x3 = np.loadtxt('./tables/XQq2Qqg.dat').reshape(100, 16, 10).T
-x4 = np.loadtxt('./tables/XQg2Qgg.dat').reshape(100, 16, 10).T
-index = 4
-for i, T in enumerate(tr):
-	plt.plot(sx, x1[i]*T**2, 'r-')
-	plt.plot(sx, x2[i]*T**2, 'g-')
-	plt.plot(sx, x3[index, i], 'b-')
-	plt.plot(sx, x4[index, i], 'y-')
+for i, T in enumerate(t34):
+	plt.plot(s34, x3[index, i], 'bo-')
+	plt.plot(s34, x4[index, i], 'yo-')
+for i, T in enumerate(t56):
+	plt.plot(s56, f5[index1, index2, i], 'k-')
+	plt.plot(s56, f6[index1, index2, i], 'c-')
+
 
 #plt.semilogy()
 plt.show()
