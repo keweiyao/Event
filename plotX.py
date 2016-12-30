@@ -21,29 +21,32 @@ index= 9
 index1 = 9
 index2 = 9
 for i, T in enumerate(t12):
-	plt.plot(s12, x1[i], 'ro-')
-	plt.plot(s12, x2[i], 'go-')
+	plt.plot(s12, x1[i], 'r-')
+	plt.plot(s12, x2[i], 'g-')
 
 for i, T in enumerate(t34):
-	plt.plot(s34, x3[index, i], 'bo-')
-	plt.plot(s34, x4[index, i], 'yo-')
+	plt.plot(s34, x3[index, i], 'b-')
+	plt.plot(s34, x4[index, i], 'y-')
 for i, T in enumerate(t56):
-	plt.plot(s56, f5[index1, index2, i], 'k-')
-	plt.plot(s56, f6[index1, index2, i], 'c-')
+	plt.plot(s56, f5[index1, index2, i]/16./np.pi/(s56**2-M**2)**2, 'k-')
+	plt.plot(s56, f6[index1, index2, i]/16./np.pi/(s56**2-M**2)**2, 'c-')
 
-
-#plt.semilogy()
+plt.semilogy()
+plt.semilogx()
 plt.show()
-
 
 def myplot(folder, scale=1.0):
 	Er = np.linspace(1.01*M, 100.*M, 100)
 	tr = np.linspace(0.12, 0.8, 16)
-	dtr = np.linspace(0.1, 10., 10.)
+	dtr = np.linspace(0.1, 20., 10.)
+	
+	Er2 = np.linspace(1.01*M, 20.*M, 20)
 	r1 = np.loadtxt('./%s/RQq2Qq.dat'%folder).reshape(100, 16).T
 	r2 = np.loadtxt('./%s/RQg2Qg.dat'%folder).reshape(100, 16).T
 	r3 = np.loadtxt('./%s/RQq2Qqg.dat'%folder).reshape(100, 16, 10).T/scale
 	r4 = np.loadtxt('./%s/RQg2Qgg.dat'%folder).reshape(100, 16, 10).T/scale
+	r5 = np.loadtxt('./%s/RQqg2Qq.dat'%folder).reshape(20, 16, 10).T/scale
+	r6 = np.loadtxt('./%s/RQgg2Qg.dat'%folder).reshape(20, 16, 10).T/scale
 	step = 1
 	index = 5
 	print dtr
@@ -52,7 +55,9 @@ def myplot(folder, scale=1.0):
 		plt.plot(Er, r2[i*step], 'g-', label=r'$Qg\rightarrow Qg$' if i==0 else '')
 		plt.plot(Er, r3[index, i*step], 'b-', label=r'$Qq\rightarrow Qqg$' if i==0 else '')
 		plt.plot(Er, r4[index, i*step], 'y-', label=r'$Qg\rightarrow Qgg$' if i==0 else '')
-	#plt.semilogy()
+		plt.plot(Er2, r5[index, i*step], 'k-', label=r'$Qqg\rightarrow Qq$' if i==0 else '')
+		plt.plot(Er2, r6[index, i*step], 'c-', label=r'$Qgg\rightarrow Qg$' if i==0 else '')
+	plt.semilogy()
 
 plt.figure(figsize=(15, 6))
 
