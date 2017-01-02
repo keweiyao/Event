@@ -40,6 +40,7 @@ def myplot(folder, scale=1.0):
 	tr = np.linspace(0.12, 0.8, 8)
 	dtr = np.linspace(0.1, 20., 10.)
 	
+	tr2 = np.linspace(0.12, 0.8, 8)
 	Er2 = np.linspace(1.01*M, 20.*M, 20)
 	r1 = np.loadtxt('./%s/RQq2Qq.dat'%folder).reshape(100, 16).T
 	r2 = np.loadtxt('./%s/RQg2Qg.dat'%folder).reshape(100, 16).T
@@ -48,13 +49,14 @@ def myplot(folder, scale=1.0):
 	r5 = np.loadtxt('./%s/RQqg2Qq.dat'%folder).reshape(20, 8, 10).T/scale
 	r6 = np.loadtxt('./%s/RQgg2Qg.dat'%folder).reshape(20, 8, 10).T/scale
 	step = 1
-	index = 5
+	index = 9
 	print dtr
 	for i, T in enumerate(tr[::step]):
 		plt.plot(Er, r1[i*step], 'r-', label=r'$Qq\rightarrow Qq$' if i==0 else '')
 		plt.plot(Er, r2[i*step], 'g-', label=r'$Qg\rightarrow Qg$' if i==0 else '')
 		plt.plot(Er, r3[index, i*step], 'b-', label=r'$Qq\rightarrow Qqg$' if i==0 else '')
 		plt.plot(Er, r4[index, i*step], 'y-', label=r'$Qg\rightarrow Qgg$' if i==0 else '')
+	for i, T in enumerate(tr2[::step]):
 		plt.plot(Er2, r5[index, i*step], 'k-', label=r'$Qqg\rightarrow Qq$' if i==0 else '')
 		plt.plot(Er2, r6[index, i*step], 'c-', label=r'$Qgg\rightarrow Qg$' if i==0 else '')
 	#plt.semilogy()
