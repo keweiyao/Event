@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import sys
 import event
 
@@ -30,7 +30,7 @@ e1 = event.event(mode='static', inelastic=False, detailed_balance=True)
 
 # Dynamic Meidum, elastic + inelastic
 #e1 = event.event(mode='dynamic', hydrofile=sys.argv[1], inelastic=True)
-
+"""
 e1.initialize_HQ(NQ=100)
 
 plt.figure(figsize=(10, 10))
@@ -43,5 +43,5 @@ for i in range(1000):
 	if not status:
 		break
 plt.show()
-
+"""
 
