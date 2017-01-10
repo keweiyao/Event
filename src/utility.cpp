@@ -54,10 +54,10 @@ void boost_by3(std::vector<double> const& A, std::vector<double> &Ap, std::vecto
 	double nx = v[0]/absv, ny = v[1]/absv, nz = v[2]/absv;
 	double gamma = 1./sqrt(1. - v2 + 1e-32);
 	double gb = gamma - 1.;
-	Ap[0] = gamma*A[0] 		 + (-gamma*v[0])*A[1] 	+ (-gamma*v[1])*A[2]	   + (-gamma*v[2])*A[3];
-	Ap[1] = (-gamma*v[0])*A[0] + (1. + gb*nx*nx)*A[1] + gb*nx*ny*A[2] 	   + gb*nx*nz*A[3];
-	Ap[2] = (-gamma*v[1])*A[0] + gb*ny*nx*A[1] 		+ (1. + gb*ny*ny)*A[2] + gb*ny*nz*A[3];
-	Ap[3] = (-gamma*v[2])*A[0] + gb*nz*nx*A[1]		+ gb*nz*ny*A[2] 	   + (1. + gb*nz*nz)*A[3];
+	Ap[0] = gamma*(A[0] 	   -v[0]*A[1] 	-v[1]*A[2]	  -v[2]*A[3]);
+	Ap[1] = -gamma*v[0]*A[0] + (1. + gb*nx*nx)*A[1] + gb*nx*ny*A[2] 	   + gb*nx*nz*A[3];
+	Ap[2] = -gamma*v[1]*A[0] + gb*ny*nx*A[1] 		+ (1. + gb*ny*ny)*A[2] + gb*ny*nz*A[3];
+	Ap[3] = -gamma*v[2]*A[0] + gb*nz*nx*A[1]		+ gb*nz*ny*A[2] 	   + (1. + gb*nz*nz)*A[3];
 }
 
 // This boost operation takes 4 velocity (u0, u1, u2, u3 of the new frame relative to the old frame)
@@ -66,7 +66,7 @@ void boost_by4(std::vector<double> const& A, std::vector<double> &Ap, std::vecto
 	double gamma = u[0];
 	double gb = gamma - 1., gv = std::sqrt(gamma*gamma - 1.) + 1e-32;
 	double nx = u[1]/gv, ny = u[2]/gv, nz = u[3]/gv;
-	Ap[0] = gamma*A[0]	 + (-u[1])*A[1] 		+ (-u[2])*A[2]		   + (-u[3])*A[3];
+	Ap[0] = gamma*A[0]	 -  u[1]*A[1] 		 - u[2]*A[2]		   -u[3]*A[3];
 	Ap[1] = (-u[1])*A[0] + (1. + gb*nx*nx)*A[1] + gb*nx*ny*A[2] 	   + gb*nx*nz*A[3];
 	Ap[2] = (-u[2])*A[0] + gb*ny*nx*A[1] 		+ (1. + gb*ny*ny)*A[2] + gb*ny*nz*A[3];
 	Ap[3] = (-u[3])*A[0] + gb*nz*nx*A[1] 		+ gb*nz*ny*A[2] 	   + (1. + gb*nz*nz)*A[3];
