@@ -34,17 +34,17 @@ std::vector<double> rotate_ByEuler(std::vector<double> const& A, double & alpha,
 std::vector<double> rotate_back_from_D(std::vector<double> const& A, double & Dx, double & Dy, double & Dz){
 	double Dperp = std::sqrt(Dx*Dx + Dy*Dy);
 	double D = std::sqrt(Dperp*Dperp + Dz*Dz);
-	double c2 = Dz/D, s2 = -Dperp/D;
-	double c3 = Dx/Dperp, s3 = -Dy/Dperp;
+	double c2 = Dz/D, s2 = Dperp/D;
+	double c3 = Dx/Dperp, s3 = Dy/Dperp;
 	size_t offset = 0;
 	std::vector<double> Ap;
 	if (A.size() == 4) {offset = 1; Ap.resize(4); Ap[0] = A[0];}
 	else {Ap.resize(3);}
 	size_t ix = offset, iy = offset+1, iz = offset+2;
 
-	Ap[ix] = c3*A[ix] 	+ c2*s3*A[iy] 	+ s2*s3*A[iz];
-	Ap[iy] = -s3*A[ix] 	+ c2*c3*A[iy] 	+ c3*s2*A[iz];
-	Ap[iz] =            - s2*A[iy] 	    + c2*A[iz];
+	Ap[ix] = -s3*A[ix] 	- c2*c3*A[iy] 	+ s2*c3*A[iz];
+	Ap[iy] = c3*A[ix] 	- c2*s3*A[iy] 	+ s2*s3*A[iz];
+	Ap[iz] =              s2*A[iy] 	    + c2*A[iz];
 	return Ap;
 }
 

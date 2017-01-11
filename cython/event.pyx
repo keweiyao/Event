@@ -18,7 +18,7 @@ cdef double GeVm1_to_fmc = 0.197
 def dfdE(e, T, M):
 	return np.exp(-e/T)*np.sqrt(e**2-M**2)*e
 
-def dfdp(p, T, M):
+def dfdP(p, T, M):
 	x = np.sqrt(p**2+M**2)/T
 	return (x+1.)*np.exp(-x)
 
@@ -30,6 +30,18 @@ def corner(ds, ranges, bins=50):
 			plt.subplot(N, N, i*N+j+1)
 			if i==j:
 				plt.hist(ds[i], bins=bins, range=[ranges[i,0], ranges[i,1]], histtype='step', normed=True)
+				if i==0:
+					e = np.linspace(1.3, 1.3*10, 100)
+					de = e[1] - e[0]
+					dfde = dfdE(e, 0.4, 1.3)
+					dfde = dfde/np.sum(dfde)/de
+					plt.plot(e, dfde, 'r-', linewidth=2.0)
+				else:
+					p = np.linspace(-1.3*5, 1.3*5, 100)
+					dp = p[1] - p[0]
+					dfdp = dfdP(p, 0.4, 1.3)
+					dfdp = dfdp/np.sum(dfdp)/dp
+					plt.plot(p, dfdp, 'r-', linewidth=2.0)
 				plt.xlim(ranges[i,0], ranges[i,1])
 			else:
 				plt.hist2d(ds[j], ds[i], range=[[ranges[j,0], ranges[j,1]],[ranges[i,0], ranges[i,1]]], bins=bins)
@@ -100,11 +112,11 @@ cdef class event:
 		while it != self.active_HQ.end():
 			self.X.append([])
 			self.Y.append([])
-			pt = sqrt((0.01*rand())/RAND_MAX)
+			pt = sqrt((9.*rand())/RAND_MAX)
 			phipt = (2.*M_PI*rand())/RAND_MAX
 			r = sqrt((4.*rand())/RAND_MAX)
 			phir = (2.*M_PI*rand())/RAND_MAX
-			pz = 10.
+			pz = 30.
 			E = sqrt(self.M**2 + pt**2 + pz**2)
 			
 			deref(it).p = [E, pt*cos(phipt), pt*sin(phipt), pz]
@@ -113,8 +125,10 @@ cdef class event:
 				free_time = self.tau0/sqrt(1. - (pz/E)**2)
 				# free streaming to hydro starting time
 				deref(it).x = freestream(deref(it).x, deref(it).p, free_time)
-			# randomize t_last
-			deref(it).t_last = -(5.*rand())/RAND_MAX
+				deref(it).t_last = 0.
+			else:
+				# randomize t_last
+				deref(it).t_last = -(5.*rand())/RAND_MAX
 			inc(it)
 
 	cpdef perform_hydro_step(self, StaticPropertyDictionary=None):
@@ -133,11 +147,11 @@ cdef class event:
 					self.perform_HQ_step(deref(it))
 			if self.mode == 'dynamic':
 				t, x, y, z = deref(it).x
-				tauQ2 = t**2 - z**2
-				while (tauQ2 < self.tau**2):
+				tauQ = sqrt(t**2 - z**2)
+				while (tauQ < self.tau):
 					self.perform_HQ_step(deref(it))
 					t, x, y, z = deref(it).x
-					tauQ2 = t**2 - z**2
+					tauQ = sqrt(t**2 - z**2)
 			inc(it)
 		return status
 
@@ -163,17 +177,14 @@ cdef class event:
 			dt2 = dt - dt1
 			it.x = freestream(it.x, it.p, dt1)
 			it.x = freestream(it.x, pnew, dt2)
-			print pnew, it.p
 			it.p = pnew
 			it.t_last = t + dt1
 		return
 
 	cdef update_HQ(self, vector[double] & p1, vector[double] & v3cell, double & Temp, double & t_elapse_lab):
 		# Define local variables
-		cdef double E1_cell, alpha1_cell, beta1_cell, gamma1_cell
+		cdef double E1_cell
 		cdef double t_elapse_cell, t_elapse_com
-		cdef double alpha_com, beta_com, gamma_com
-		cdef double p1z_cell_align, costheta2, sintheta2, cosphi2, sinphi2
 		cdef double dt, dt_cell
 		cdef int channel
 		
@@ -207,8 +218,10 @@ cdef class event:
 			for i in range(4):
 				Pcom[i] += pp[i]
 		cdef double s = product4(Pcom, Pcom)
+		
 		for i in range(3):	
 			v3com[i] = Pcom[i+1]/Pcom[0]
+		
 		cdef vector[double] p1_com = boost4_By3(p1_cell_align, v3com)
 	
 		# Tranform t_elapse_cell to t_elapse_com
@@ -236,10 +249,6 @@ cdef class event:
 		E, px, py, pz = [], [], [], []
 		plt.clf()
 		cdef vector[particle].iterator it = self.active_HQ.begin()
-		#A = self.hydro_reader.get_current_frame('Temp')
-		#plt.imshow(np.flipud(A), extent = [-15, 15, -15, 15])
-		#cb = plt.colorbar()
-		#cb.set_label(r'$T$ [GeV]')
 		while it != self.active_HQ.end():
 			E.append(deref(it).p[0])
 			px.append(deref(it).p[1])
@@ -247,9 +256,7 @@ cdef class event:
 			pz.append(deref(it).p[3])
 			inc(it)
 		E = np.array(E); px = np.array(px); py = np.array(py); pz = np.array(pz)
-		corner(np.array([E, px, py, pz]), ranges=np.array([[0,11], [-4,4], [-4,4], [-4,11]]))
-		#"""
-		#plt.hist(self.C)
+		corner(np.array([E, px, py, pz]), ranges=np.array([[0,32], [-4,4], [-4,4], [-4,32]]))
 		plt.pause(0.02)
 
 	def HQ_xy(self):

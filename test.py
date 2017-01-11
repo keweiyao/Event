@@ -4,7 +4,7 @@ import sys
 import event
 
 # A static medium dictionary
-medium = {'Temp': 0.5, 
+medium = {'Temp': 0.4, 
 		  'Vx'	: 0.0, 
 		  'Vy'	: 0.0, 
 		  'Vz'	: 0.0}
@@ -20,7 +20,7 @@ medium = {'Temp': 0.5,
 # 6. table = where to put the tabulated cross-secitons and scattering rates.
 
 # Static Meidum, only elastic
-e1 = event.event(mode='static', inelastic=False, detailed_balance=False, mass=1.3)
+e1 = event.event(mode='static', inelastic=True, detailed_balance=False, mass=1.3)
 
 # Static Meidum, elastic + inelastic
 #e1 = event.event(mode='static', elastic=True, inelastic=True)
