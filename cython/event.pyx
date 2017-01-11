@@ -37,47 +37,7 @@ def corner(ds, ranges, bins=50):
 				plt.ylim(ranges[i,0], ranges[i,1])
 
 #-------------C/Python Wrapper functions--------------------------------------------
-cpdef double dot4(vector[double] & A, vector[double] & B):
-	return product4(A, B)
-
-cpdef print4(const vector[double] & A):
-	print4vec(A)
-
-cpdef rotate_ByEuler(vector[double] & A, double alpha, double beta, double gamma):
-	cdef vector[double] Ap
-	Ap.resize(4)
-	rotate_Euler(A, Ap, alpha, beta, gamma)
-	return Ap
-
-cpdef rotate_ByAxis(vector[double] & A, double alpha, unsigned int dir):
-	if not (dir in [1,2,3]):
-		raise ValueError("Direction can only be 1(x), 2(y), 3(z)")
-	cdef vector[double] Ap
-	Ap.resize(4)
-	rotate_axis(A, Ap, alpha, dir)
-	return Ap
-
-cpdef boost4_By3(vector[double] A, vector[double] v):
-	cdef vector[double] Ap
-	Ap.resize(4)
-	boost_by3(A, Ap, v)
-	return Ap
-
-cpdef boost4_By4(vector[double] A, vector[double] u):
-	cdef vector[double] Ap
-	Ap.resize(4)
-	boost_by4(A, Ap, u)
-	return Ap
-
-cpdef boost4_ByAxis(vector[double] A, double vd, unsigned int dir):
-	if not (dir in [1,2,3]):
-		raise ValueError("Direction can only be 1(x), 2(y), 3(z)")
-	cdef vector[double] Ap
-	Ap.resize(4)
-	boost_axis(A, Ap, vd, dir)
-	return Ap
-
-cpdef boost4_ByCoM(vector[double] A, vector[double] B):
+cpdef boost4_ByCoM(vector[double] & A, vector[double] & B):
 	cdef vector[double] Ap, Bp, Pcom
 	Ap.resize(4)
 	Bp.resize(4)
@@ -99,10 +59,10 @@ cdef extern from "../src/utility.h":
 		double T_dec
 		vector[double] v_dec
 		particle()
+
 #-----------Event Class---------------------------------------------
-cpdef freestream(vector[double] & x, vector[double] & p, double & dt):
-	cdef vector[double] xnew = [x[0]+dt, x[1]+p[1]/p[0]*dt, x[2]+p[2]/p[0]*dt, x[3]+p[3]/p[0]*dt]
-	return xnew
+cdef freestream(vector[double] & x, vector[double] & p, double & dt):
+	return [x[0]+dt, x[1]+p[1]/p[0]*dt, x[2]+p[2]/p[0]*dt, x[3]+p[3]/p[0]*dt]
 
 cdef class event:
 	cdef object hydro_reader, hqsample, mode
@@ -135,21 +95,26 @@ cdef class event:
 		
 		if XY_table==None and Pweight==None:
 			print "Use default initialization pro"
+
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		while it != self.active_HQ.end():
 			self.X.append([])
 			self.Y.append([])
-			pt = sqrt((9.*rand())/RAND_MAX)
+			pt = sqrt((0.01*rand())/RAND_MAX)
 			phipt = (2.*M_PI*rand())/RAND_MAX
 			r = sqrt((4.*rand())/RAND_MAX)
 			phir = (2.*M_PI*rand())/RAND_MAX
-			E = sqrt(self.M**2 + pt**2)
-			pz = 0.0
+			pz = 10.
+			E = sqrt(self.M**2 + pt**2 + pz**2)
+			
 			deref(it).p = [E, pt*cos(phipt), pt*sin(phipt), pz]
-			free_time = self.tau0/sqrt(1. - (pz/E)**2)
 			deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
-			# free streaming to hydro starting time
-			deref(it).x = freestream(deref(it).x, deref(it).p, free_time)
+			if self.mode == 'dynamic':
+				free_time = self.tau0/sqrt(1. - (pz/E)**2)
+				# free streaming to hydro starting time
+				deref(it).x = freestream(deref(it).x, deref(it).p, free_time)
+			# randomize t_last
+			deref(it).t_last = -(5.*rand())/RAND_MAX
 			inc(it)
 
 	cpdef perform_hydro_step(self, StaticPropertyDictionary=None):
@@ -160,124 +125,108 @@ cdef class event:
 		if self.mode == 'static':
 			status = self.hydro_reader.load_next(StaticPropertyDictionary=StaticPropertyDictionary)
 		self.tau += self.dtau
-		cdef double t, x, y, z, tauQ
-		cdef vector[double] pnew
-		pnew.resize(4)
+		cdef double t, x, y, z, tauQ2
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		while it != self.active_HQ.end():
 			if self.mode == 'static':
 				while (deref(it).x[0] < self.tau):
-					self.perform_HQ_step(it)
+					self.perform_HQ_step(deref(it))
 			if self.mode == 'dynamic':
 				t, x, y, z = deref(it).x
-				tauQ = sqrt(t**2 - z**2)
-				while (tauQ < self.tau):
-					self.perform_HQ_step(it)
+				tauQ2 = t**2 - z**2
+				while (tauQ2 < self.tau**2):
+					self.perform_HQ_step(deref(it))
 					t, x, y, z = deref(it).x
-					tauQ = sqrt(t**2 - z**2)
+					tauQ2 = t**2 - z**2
 			inc(it)
 		return status
 
-	cdef perform_HQ_step(self, vector[particle].iterator it):
-		cdef double t, x, y, z, t_elapse_lab, T, tauQ
+	cdef perform_HQ_step(self, particle & it):
+		cdef double t, x, y, z, t_elapse_lab, tauQ
+		cdef double T, vx, vy, vz
 		cdef int channel
 
-		t, x, y, z = deref(it).x
-		t_elapse_lab = t - deref(it).t_last
+		t, x, y, z = it.x
+		t_elapse_lab = t - it.t_last
 		
 		tauQ = sqrt(t**2 - z**2)
-		T, vx, vy, vz = self.hydro_reader.interpF(tauQ, [x, y, z, t], ['Temp', 'Vx', 'Vy', 'Vz'])		
-		channel, dt, pnew = self.update_HQ(deref(it).p, [vx, vy, vz], T, t_elapse_lab)
+		T, vx, vy, vz = self.hydro_reader.interpF(tauQ, [x, y, z, t], ['Temp', 'Vx', 'Vy', 'Vz'])	
+		# Note the change of units from GeV-1 (fm/c) to fm/c (GeV-1)
+		t_elapse_lab *= GeVm1_to_fmc
+		channel, dt, pnew = self.update_HQ(it.p, [vx, vy, vz], T, t_elapse_lab)
 		dt *= GeVm1_to_fmc
 		self.C.append(channel)
 		if channel < 0:
-			deref(it).x = freestream(deref(it).x, deref(it).p, dt)
+			it.x = freestream(it.x, it.p, dt)
 		else:
 			dt1 = (dt*rand())/RAND_MAX
 			dt2 = dt - dt1
-			deref(it).x = freestream(deref(it).x, deref(it).p, dt1)
-			deref(it).x = freestream(deref(it).x, pnew, dt2)
-			deref(it).p = pnew
-			deref(it).t_last = t + dt1
+			it.x = freestream(it.x, it.p, dt1)
+			it.x = freestream(it.x, pnew, dt2)
+			print pnew, it.p
+			it.p = pnew
+			it.t_last = t + dt1
 		return
 
-	cpdef update_HQ(self, vector[double] p1, vector[double] v3cell, double Temp, double t_elapse_lab):
+	cdef update_HQ(self, vector[double] & p1, vector[double] & v3cell, double & Temp, double & t_elapse_lab):
 		# Define local variables
-		t_elapse_lab /= GeVm1_to_fmc
-		cdef double E1_cell, alpha1_cell, beta1_cell, gamma1_cell, E2_cell, s
+		cdef double E1_cell, alpha1_cell, beta1_cell, gamma1_cell
 		cdef double t_elapse_cell, t_elapse_com
 		cdef double alpha_com, beta_com, gamma_com
 		cdef double p1z_cell_align, costheta2, sintheta2, cosphi2, sinphi2
-		cdef double dt
+		cdef double dt, dt_cell
 		cdef int channel
-		cdef vector[double] rv3cell = [-v3cell[0], -v3cell[1], -v3cell[2]]
-
+		
 		# Boost to cell frame and take down orientation of p1_cell
 		cdef vector[double] p1_cell = boost4_By3(p1, v3cell)
 		E1_cell = p1_cell[0]
-		alpha1_cell = atan2(p1_cell[2], p1_cell[1]) + M_PI/2.
-		beta1_cell = atan2(sqrt(p1_cell[1]**2+p1_cell[2]**2), p1_cell[3])
-		gamma1_cell = 0.0
 
 		# Boost time separation to cell frame
-		cdef vector[double] dx4_lab = [t_elapse_lab, 			 t_elapse_lab*p1[1]/p1[0],
-									   t_elapse_lab*p1[2]/p1[0], t_elapse_lab*p1[3]/p1[0]]
+		dx4_lab = [t_elapse_lab, t_elapse_lab*p1[1]/p1[0],
+				   t_elapse_lab*p1[2]/p1[0], t_elapse_lab*p1[3]/p1[0]]
 		cdef vector[double] dx4_cell = boost4_By3(dx4_lab, v3cell)
 		t_elapse_cell = dx4_cell[0]
 	
 		# Sample channel in cell, constrained by dt_max
 		channel, dt_cell = self.hqsample.sample_channel(E1_cell, Temp, t_elapse_cell)
-
+		
 		# Boost evolution time back to lab frame
-		cdef double dt_lab = boost4_By3([dt_cell, 0., 0., 0.], rv3cell)[0]
+		cdef double dt_lab = boost4_By3([dt_cell, 0., 0., 0.], [-v3cell[0], -v3cell[1], -v3cell[2]])[0]
 		if channel < 0:
 			return channel, dt_lab, p1
 	
-		# Sample E2_cell, s in cell
-		E2_cell, s = self.hqsample.sample_initial(channel, E1_cell, Temp, t_elapse_cell)
-	
-		# Imagine rotate p1_cell to align with z-direction, construct p2_cell_align
-		p1z_cell_align = sqrt(E1_cell**2 - self.M**2)
-		costheta2 = (self.M**2 + 2.*E1_cell*E2_cell - s)/2./p1z_cell_align/E2_cell
-		sintheta2 = sqrt(1. - costheta2**2)
-		phi2 = (rand()*2.*M_PI)/RAND_MAX
-		cosphi2 = cos(phi2)
-		sinphi2 = sin(phi2) 
-		cdef vector[double] p1_cell_align = [E1_cell, 0.0, 0.0, p1z_cell_align]
-		cdef vector[double] p2_cell_align = [E2_cell, E2_cell*sintheta2*cosphi2, \
-											 E2_cell*sintheta2*sinphi2, E2_cell*costheta2]
+		# Sample initial state and return initial state particle four vectors 
+		# Imagine rotate p1_cell to align with z-direction, construct p2_cell_align, ...
+		cdef vector[ vector[double] ] Initial_States = self.hqsample.sample_initial(channel, E1_cell, Temp, t_elapse_cell)
+		p1_cell_align = Initial_States[0]
 
-
-		# Center of mass frame of p1_cell_align and p2_cell_align, and take down orientation of p1_com
-		cdef int i=0
+		# Center of mass frame of p1_cell_align and other particles, and take down orientation of p1_com
+		cdef size_t i=0
 		cdef vector[double] Pcom = [0., 0., 0., 0.], v3com = [0., 0., 0.]
-		for i in range(4):	
-			Pcom[i] = p1_cell_align[i] + p2_cell_align[i]
+		for pp in Initial_States:
+			for i in range(4):
+				Pcom[i] += pp[i]
+		cdef double s = product4(Pcom, Pcom)
 		for i in range(3):	
 			v3com[i] = Pcom[i+1]/Pcom[0]
 		cdef vector[double] p1_com = boost4_By3(p1_cell_align, v3com)
-		alpha1_com = atan2(p1_com[2], p1_com[1]) + M_PI/2.
-		beta1_com = atan2(sqrt(p1_com[1]**2+p1_com[2]**2), p1_com[3])
-		gamma1_com = 0.0
 	
 		# Tranform t_elapse_cell to t_elapse_com
 		t_elapse_com = boost4_By3(dx4_cell, v3com)[0]
-
+		
 		# Sample final state momentum in Com frame, with incoming paticles on z-axis
 		cdef vector[double] p1_new_com_aligen = self.hqsample.sample_final(channel, s, Temp, t_elapse_com)[0]
-	
 		# Rotate final states back to original Com frame (not z-axis aligened)
-		cdef vector[double] p1_new_com = rotate_ByEuler(p1_new_com_aligen, -gamma1_com, -beta1_com, -alpha1_com)
+		cdef vector[double] p1_new_com = rotate_back_from_D(p1_new_com_aligen, p1_com[1], p1_com[2], p1_com[3])
 	
 		# boost back to cell frame z-aligned
-		cdef vector[double] rv3com = [-v3com[0], -v3com[1], -v3com[2]] 
-		cdef vector[double] p1_new_cell_align = boost4_By3(p1_new_com, rv3com)
-	
+		cdef vector[double] p1_new_cell_align = boost4_By3(p1_new_com, [-v3com[0], -v3com[1], -v3com[2]] )
+		
 		# rotate back to original cell frame
-		cdef vector[double] p1_new_cell = rotate_ByEuler(p1_new_cell_align, -gamma1_cell, -beta1_cell, -alpha1_cell)
+		cdef vector[double] p1_new_cell = rotate_back_from_D(p1_new_cell_align, p1_cell[1], p1_cell[2], p1_cell[3])
 
 		# boost back to lab frame
-		cdef vector[double] p1_new = boost4_By3(p1_new_cell, rv3cell)
+		cdef vector[double] p1_new = boost4_By3(p1_new_cell, [-v3cell[0], -v3cell[1], -v3cell[2]])
 	
 		# return updated momentum of heavy quark
 		return channel, dt_lab, p1_new
@@ -298,7 +247,7 @@ cdef class event:
 			pz.append(deref(it).p[3])
 			inc(it)
 		E = np.array(E); px = np.array(px); py = np.array(py); pz = np.array(pz)
-		corner(np.array([E, px, py, pz]), ranges=np.array([[0,6], [-4,4], [-4,4], [-4,4]]))
+		corner(np.array([E, px, py, pz]), ranges=np.array([[0,11], [-4,4], [-4,4], [-4,11]]))
 		#"""
 		#plt.hist(self.C)
 		plt.pause(0.02)

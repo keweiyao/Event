@@ -14,25 +14,26 @@ void print4vec(std::vector<double> const& A);
 // And returns the A vector by its components in the new frame.
 // the new frame is achieved by the old frame from Z(1_=alpha), X(2_=beta) and Z(3_=gamma)
 // R = Z3T*X2T*Z1T
-void rotate_Euler(std::vector<double> const& A, std::vector<double> & Ap, double alpha, double beta, double gamma);
+std::vector<double> rotate_ByEuler(std::vector<double> const& A, double & alpha, double & beta, double & gamma);
 
+std::vector<double> rotate_back_from_D(std::vector<double> const& A, double & Dx, double & Dy, double & Dz);
 // Rotation around ith axis, return vector components in the new frame, passive
 // dir = 1(x), 2(y), 3(z)
-void rotate_axis(std::vector<double> const& A, std::vector<double> &Ap, double alpha, unsigned int dir);
+std::vector<double> rotate_ByAxis(std::vector<double> const& A, double & alpha, unsigned int & dir);
 
 //=======================Boost==============================================================
 
 //---------------------General Boost (beta_x, beta_y, beta_z)-----------------------------------------
 // This boost operation takes 3 velocity (vx, vy, vz, of the new frame relative to the old frame)
 // And returns the A vector by its components in the new frame.
-void boost_by3(std::vector<double> const& A, std::vector<double> &Ap, std::vector<double> const& v);
+std::vector<double> boost4_By3(std::vector<double> const& A, std::vector<double> const& v);
 
 // This boost operation takes 4 velocity (u0, u1, u2, u3 of the new frame relative to the old frame)
 // And returns the A vector by its components in the new frame.
-void boost_by4(std::vector<double> const& A, std::vector<double> &Ap, std::vector<double> const& u);
+std::vector<double> boost4_By4(std::vector<double> const& A, std::vector<double> const& u);
 // Boost along ith axis, return vector components in the new frame, passive
 // dir = 1(x), 2(y), 3(z)
-void boost_axis(std::vector<double> const& A, std::vector<double> &Ap, double const vd, unsigned int dir);
+std::vector<double> boost4_ByAxis(std::vector<double> const& A, double const & vd, unsigned int & dir);
 
 // boost two 4-vectors to their center of mass frame:
 void go_to_CoM(std::vector<double> const& Pcom,

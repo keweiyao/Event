@@ -64,32 +64,32 @@ plt.show()
 
 def myplot(folder):
 	Er = np.linspace(1.01*M, 100.*M, 100)
-	Er2 = np.linspace(1.01*M, 30.*M, 30)
+	Er2 = np.linspace(1.01*M, 50.*M, 50)
 	tr = np.linspace(0.13, 0.75, 8)
 	dtr = np.linspace(0.1, 5., 10.)
-	dtr2 = np.linspace(0.1, 40., 10.)
+	dtr2 = np.linspace(0.1, 50., 10.)
 
 	r1 = np.loadtxt('./%s/RQq2Qq.dat'%folder).reshape(100, 16).T
 	r2 = np.loadtxt('./%s/RQg2Qg.dat'%folder).reshape(100, 16).T
 	r3 = np.loadtxt('./%s/RQq2Qqg.dat'%folder).reshape(100, 8, 10).T
 	r4 = np.loadtxt('./%s/RQg2Qgg.dat'%folder).reshape(100, 8, 10).T
-	r5 = np.loadtxt('./%s/RQqg2Qq.dat'%folder).reshape(30, 8, 10).T
-	r6 = np.loadtxt('./%s/RQgg2Qg.dat'%folder).reshape(30, 8, 10).T
+	r5 = np.loadtxt('./%s/RQqg2Qq.dat'%folder).reshape(50, 8, 10).T
+	r6 = np.loadtxt('./%s/RQgg2Qg.dat'%folder).reshape(50, 8, 10).T
 
 	
 	for it, dt in enumerate(dtr):
 		plt.subplot(2, 5, it+1)
 		for iT, T in enumerate(tr):
-			scale12 = T**0.4
+			scale12 = 1.0#T**0.4
 			plt.plot(Er, r1[iT]/scale12, 'r-', lw=1, label=r'$Qq\rightarrow Qq$' if iT==0 else '')
 			plt.plot(Er, r2[iT]/scale12, 'g-', lw=1, label=r'$Qg\rightarrow Qg$' if iT==0 else '')
-			scale34 = dt**2/Er**0.75*T**2.6
+			scale34 = 1.0#dt**2/Er**0.75*T**2.6
 			plt.plot(Er, r3[it, iT]/scale34, 'y-', lw=2, label=r'$Qq\rightarrow Qqg$' if iT==0 else '')
 			plt.plot(Er, r4[it, iT]/scale34, 'b-', lw=2, label=r'$Qg\rightarrow Qgg$' if iT==0 else '')
-			scale56 = dtr2[it]**2/Er2**1.*T**3.5
+			scale56 = 1.0#dtr2[it]**2/Er2**1.*T**3.5
 			plt.plot(Er2, r5[it, iT]/scale56, 'y--', lw=2, label=r'$Qqg\rightarrow Qq$' if iT==0 else '')
 			plt.plot(Er2, r6[it, iT]/scale56, 'b--', lw=2, label=r'$Qgg\rightarrow Qg$' if iT==0 else '')
-		#plt.ylim(1e-6, 1e1)
+		plt.ylim(0, 1.5)
 		#plt.semilogy()
 
 
