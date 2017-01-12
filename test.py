@@ -40,6 +40,6 @@ for i in range(1000):
 	e1.HQ_hist()
 	if not status:
 		break
-#plt.show()
+plt.show()
 
 

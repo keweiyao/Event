@@ -112,11 +112,11 @@ cdef class event:
 		while it != self.active_HQ.end():
 			self.X.append([])
 			self.Y.append([])
-			pt = sqrt((9.*rand())/RAND_MAX)
+			pt = sqrt((1.*rand())/RAND_MAX)
 			phipt = (2.*M_PI*rand())/RAND_MAX
 			r = sqrt((4.*rand())/RAND_MAX)
 			phir = (2.*M_PI*rand())/RAND_MAX
-			pz = 30.
+			pz = 20.
 			E = sqrt(self.M**2 + pt**2 + pz**2)
 			
 			deref(it).p = [E, pt*cos(phipt), pt*sin(phipt), pz]

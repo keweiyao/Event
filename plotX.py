@@ -64,17 +64,17 @@ plt.show()
 
 def myplot(folder):
 	Er = np.linspace(1.01*M, 100.*M, 100)
-	Er2 = np.linspace(1.01*M, 50.*M, 50)
+	Er2 = np.linspace(1.01*M, 30.*M, 30)
 	tr = np.linspace(0.13, 0.75, 8)
 	dtr = np.linspace(0.1, 5., 10.)
-	dtr2 = np.linspace(0.1, 50., 10.)
+	dtr2 = np.linspace(0.1, 5., 10.)
 
 	r1 = np.loadtxt('./%s/RQq2Qq.dat'%folder).reshape(100, 16).T
 	r2 = np.loadtxt('./%s/RQg2Qg.dat'%folder).reshape(100, 16).T
 	r3 = np.loadtxt('./%s/RQq2Qqg.dat'%folder).reshape(100, 8, 10).T
 	r4 = np.loadtxt('./%s/RQg2Qgg.dat'%folder).reshape(100, 8, 10).T
-	r5 = np.loadtxt('./%s/RQqg2Qq.dat'%folder).reshape(50, 8, 10).T
-	r6 = np.loadtxt('./%s/RQgg2Qg.dat'%folder).reshape(50, 8, 10).T
+	r5 = np.loadtxt('./%s/RQqg2Qq.dat'%folder).reshape(30, 8, 10).T
+	r6 = np.loadtxt('./%s/RQgg2Qg.dat'%folder).reshape(30, 8, 10).T
 
 	
 	for it, dt in enumerate(dtr):
