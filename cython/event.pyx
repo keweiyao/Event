@@ -66,6 +66,7 @@ cdef extern from "../src/utility.h":
 		vector[double] p
 		vector[double] x
 		double t_last
+		double Nc
 		double weight
 		bool freeze
 		double T_dec
@@ -112,23 +113,26 @@ cdef class event:
 		while it != self.active_HQ.end():
 			self.X.append([])
 			self.Y.append([])
-			pt = sqrt((1.*rand())/RAND_MAX)
+			pt = sqrt((0.01*rand())/RAND_MAX)
 			phipt = (2.*M_PI*rand())/RAND_MAX
 			r = sqrt((4.*rand())/RAND_MAX)
 			phir = (2.*M_PI*rand())/RAND_MAX
-			pz = 20.
+			pz = 10.
 			E = sqrt(self.M**2 + pt**2 + pz**2)
 			
 			deref(it).p = [E, pt*cos(phipt), pt*sin(phipt), pz]
-			deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
 			if self.mode == 'dynamic':
 				free_time = self.tau0/sqrt(1. - (pz/E)**2)
 				# free streaming to hydro starting time
+				deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
 				deref(it).x = freestream(deref(it).x, deref(it).p, free_time)
 				deref(it).t_last = 0.
+				deref(it).Nc = 0.
 			else:
+				deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
 				# randomize t_last
-				deref(it).t_last = -(5.*rand())/RAND_MAX
+				deref(it).t_last = 0.
+				deref(it).Nc = 0.
 			inc(it)
 
 	cpdef perform_hydro_step(self, StaticPropertyDictionary=None):
@@ -141,14 +145,15 @@ cdef class event:
 		self.tau += self.dtau
 		cdef double t, x, y, z, tauQ2
 		cdef vector[particle].iterator it = self.active_HQ.begin()
+		cdef int i=0
 		while it != self.active_HQ.end():
 			if self.mode == 'static':
-				while (deref(it).x[0] < self.tau):
+				while deref(it).x[0] <= self.tau:
 					self.perform_HQ_step(deref(it))
 			if self.mode == 'dynamic':
 				t, x, y, z = deref(it).x
 				tauQ = sqrt(t**2 - z**2)
-				while (tauQ < self.tau):
+				while tauQ <= self.tau:
 					self.perform_HQ_step(deref(it))
 					t, x, y, z = deref(it).x
 					tauQ = sqrt(t**2 - z**2)
@@ -161,13 +166,14 @@ cdef class event:
 		cdef int channel
 
 		t, x, y, z = it.x
-		t_elapse_lab = t - it.t_last
+		cdef double Ncoll = (it.Nc + 1.)
+		t_elapse_lab = (t - it.t_last)/Ncoll
 		
 		tauQ = sqrt(t**2 - z**2)
 		T, vx, vy, vz = self.hydro_reader.interpF(tauQ, [x, y, z, t], ['Temp', 'Vx', 'Vy', 'Vz'])	
 		# Note the change of units from GeV-1 (fm/c) to fm/c (GeV-1)
 		t_elapse_lab *= GeVm1_to_fmc
-		channel, dt, pnew = self.update_HQ(it.p, [vx, vy, vz], T, t_elapse_lab)
+		channel, dt, pnew = self.update_HQ(it.p, [vx, vy, vz], T, t_elapse_lab, Ncoll)
 		dt *= GeVm1_to_fmc
 		self.C.append(channel)
 		if channel < 0:
@@ -178,10 +184,13 @@ cdef class event:
 			it.x = freestream(it.x, it.p, dt1)
 			it.x = freestream(it.x, pnew, dt2)
 			it.p = pnew
-			it.t_last = t + dt1
+			it.Nc += 1.
+			if channel > 1:	
+				it.t_last = t + dt1
+				it.Nc = 0.
 		return
 
-	cdef update_HQ(self, vector[double] & p1, vector[double] & v3cell, double & Temp, double & t_elapse_lab):
+	cdef update_HQ(self, vector[double] & p1, vector[double] & v3cell, double & Temp, double & t_elapse_lab, double & Nc):
 		# Define local variables
 		cdef double E1_cell
 		cdef double t_elapse_cell, t_elapse_com
@@ -199,7 +208,7 @@ cdef class event:
 		t_elapse_cell = dx4_cell[0]
 	
 		# Sample channel in cell, constrained by dt_max
-		channel, dt_cell = self.hqsample.sample_channel(E1_cell, Temp, t_elapse_cell)
+		channel, dt_cell = self.hqsample.sample_channel(E1_cell, Temp, t_elapse_cell, Nc)
 		
 		# Boost evolution time back to lab frame
 		cdef double dt_lab = boost4_By3([dt_cell, 0., 0., 0.], [-v3cell[0], -v3cell[1], -v3cell[2]])[0]
@@ -256,7 +265,7 @@ cdef class event:
 			pz.append(deref(it).p[3])
 			inc(it)
 		E = np.array(E); px = np.array(px); py = np.array(py); pz = np.array(pz)
-		corner(np.array([E, px, py, pz]), ranges=np.array([[0,32], [-4,4], [-4,4], [-4,32]]))
+		corner(np.array([E, px, py, pz]), ranges=np.array([[0,11], [-4,4], [-4,4], [-4,11]]))
 		plt.pause(0.02)
 
 	def HQ_xy(self):

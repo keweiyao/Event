@@ -44,11 +44,12 @@ struct particle{
 	std::vector<double> p;
 	std::vector<double> x;
 	double t_last;
+	double Nc;
 	double weight;
 	bool freeze;
 	double T_dec;
 	std::vector<double> v_dec;
-	particle() : p(4), x(4), t_last(0.0), weight(1.0), freeze(false), T_dec(-1.0), v_dec(3){
+	particle() : p(4), x(4), t_last(0.0), Nc(0.0), weight(1.0), freeze(false), T_dec(-1.0), v_dec(3){
 	}
 };
 
