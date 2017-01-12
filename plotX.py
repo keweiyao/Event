@@ -89,7 +89,7 @@ def myplot(folder):
 			scale56 = 1.0#dtr2[it]**2/Er2**1.*T**3.5
 			plt.plot(Er2, r5[it, iT]/scale56, 'y--', lw=2, label=r'$Qqg\rightarrow Qq$' if iT==0 else '')
 			plt.plot(Er2, r6[it, iT]/scale56, 'b--', lw=2, label=r'$Qgg\rightarrow Qg$' if iT==0 else '')
-		plt.ylim(0, 1.5)
+		#plt.ylim(0, 1.5)
 		#plt.semilogy()
 
 

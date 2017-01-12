@@ -66,6 +66,7 @@ cdef extern from "../src/utility.h":
 		vector[double] p
 		vector[double] x
 		double t_last
+		double Nc
 		double weight
 		bool freeze
 		double T_dec
@@ -112,23 +113,26 @@ cdef class event:
 		while it != self.active_HQ.end():
 			self.X.append([])
 			self.Y.append([])
-			pt = sqrt((9.*rand())/RAND_MAX)
+			pt = sqrt((1.*rand())/RAND_MAX)
 			phipt = (2.*M_PI*rand())/RAND_MAX
 			r = sqrt((4.*rand())/RAND_MAX)
 			phir = (2.*M_PI*rand())/RAND_MAX
-			pz = 30.
+			pz = 10.
 			E = sqrt(self.M**2 + pt**2 + pz**2)
 			
 			deref(it).p = [E, pt*cos(phipt), pt*sin(phipt), pz]
-			deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
 			if self.mode == 'dynamic':
 				free_time = self.tau0/sqrt(1. - (pz/E)**2)
 				# free streaming to hydro starting time
+				deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
 				deref(it).x = freestream(deref(it).x, deref(it).p, free_time)
 				deref(it).t_last = 0.
+				deref(it).Nc = 0.
 			else:
+				deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
 				# randomize t_last
-				deref(it).t_last = -(5.*rand())/RAND_MAX
+				deref(it).t_last = 0.
+				deref(it).Nc = 0.
 			inc(it)
 
 	cpdef perform_hydro_step(self, StaticPropertyDictionary=None):
@@ -161,7 +165,7 @@ cdef class event:
 		cdef int channel
 
 		t, x, y, z = it.x
-		t_elapse_lab = t - it.t_last
+		t_elapse_lab = (t - it.t_last)/(it.Nc + 1.)
 		
 		tauQ = sqrt(t**2 - z**2)
 		T, vx, vy, vz = self.hydro_reader.interpF(tauQ, [x, y, z, t], ['Temp', 'Vx', 'Vy', 'Vz'])	
@@ -178,7 +182,10 @@ cdef class event:
 			it.x = freestream(it.x, it.p, dt1)
 			it.x = freestream(it.x, pnew, dt2)
 			it.p = pnew
-			it.t_last = t + dt1
+			it.Nc += 1.
+			if channel > 1:	
+				it.t_last = t + dt1
+				it.Nc = 0.
 		return
 
 	cdef update_HQ(self, vector[double] & p1, vector[double] & v3cell, double & Temp, double & t_elapse_lab):
@@ -256,7 +263,7 @@ cdef class event:
 			pz.append(deref(it).p[3])
 			inc(it)
 		E = np.array(E); px = np.array(px); py = np.array(py); pz = np.array(pz)
-		corner(np.array([E, px, py, pz]), ranges=np.array([[0,32], [-4,4], [-4,4], [-4,32]]))
+		corner(np.array([E, px, py, pz]), ranges=np.array([[0,12], [-4,4], [-4,4], [-4,12]]))
 		plt.pause(0.02)
 
 	def HQ_xy(self):
