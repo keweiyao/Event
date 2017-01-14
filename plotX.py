@@ -19,8 +19,8 @@ x1 = np.loadtxt('./tables/XQq2Qq.dat').reshape(100, 32).T*GeVm2_to_mb
 x2 = np.loadtxt('./tables/XQg2Qg.dat').reshape(100, 32).T*GeVm2_to_mb
 x3 = np.loadtxt('./tables/XQq2Qqg.dat').reshape(50, 16, 10).T*GeVm2_to_mb
 x4 = np.loadtxt('./tables/XQg2Qgg.dat').reshape(50, 16, 10).T*GeVm2_to_mb
-f5 = np.loadtxt('./tables/XQqg2Qq.dat').reshape(60, 8, 30, 30).T
-f6 = np.loadtxt('./tables/XQgg2Qg.dat').reshape(60, 8, 30, 30).T
+f5 = np.loadtxt('./tables/XQqg2Qq.dat').reshape(60, 8, 20, 20).T
+f6 = np.loadtxt('./tables/XQgg2Qg.dat').reshape(60, 8, 20, 20).T
 
 
 """
@@ -64,7 +64,7 @@ plt.show()
 
 def myplot(folder):
 	Er = np.linspace(1.01*M, 100.*M, 100)
-	Er2 = np.linspace(1.01*M, 30.*M, 30)
+	Er2 = np.linspace(1.01*M, 20.*M, 20)
 	tr = np.linspace(0.13, 0.75, 8)
 	dtr = np.linspace(0.1, 5., 10.)
 	dtr2 = np.linspace(0.1, 5., 10.)
@@ -73,8 +73,8 @@ def myplot(folder):
 	r2 = np.loadtxt('./%s/RQg2Qg.dat'%folder).reshape(100, 16).T
 	r3 = np.loadtxt('./%s/RQq2Qqg.dat'%folder).reshape(100, 8, 10).T
 	r4 = np.loadtxt('./%s/RQg2Qgg.dat'%folder).reshape(100, 8, 10).T
-	r5 = np.loadtxt('./%s/RQqg2Qq.dat'%folder).reshape(30, 8, 10).T
-	r6 = np.loadtxt('./%s/RQgg2Qg.dat'%folder).reshape(30, 8, 10).T
+	r5 = np.loadtxt('./%s/RQqg2Qq.dat'%folder).reshape(20, 8, 10).T
+	r6 = np.loadtxt('./%s/RQgg2Qg.dat'%folder).reshape(20, 8, 10).T
 
 	
 	for it, dt in enumerate(dtr):
