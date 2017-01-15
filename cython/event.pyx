@@ -5,6 +5,7 @@ from libc.stdlib cimport rand, RAND_MAX
 from libc.math cimport *
 from cython.operator cimport dereference as deref, preincrement as inc
 import numpy as np
+cimport numpy as np
 import matplotlib.pyplot as plt
 sys.path.append('../HQ-Evo/')
 sys.path.append('../Medium-Reader')
@@ -13,40 +14,6 @@ import medium
 from event cimport *
 
 cdef double GeVm1_to_fmc = 0.197
-
-#-------------Thermal distribution function----------------------------------------
-def dfdE(e, T, M):
-	return np.exp(-e/T)*np.sqrt(e**2-M**2)*e
-
-def dfdP(p, T, M):
-	x = np.sqrt(p**2+M**2)/T
-	return (x+1.)*np.exp(-x)
-
-#-------------Corner plot function-------------------------------------------------
-def corner(ds, ranges, bins=50):
-	N = ds.shape[0]
-	for i in range(N):
-		for j in range(i+1):
-			plt.subplot(N, N, i*N+j+1)
-			if i==j:
-				plt.hist(ds[i], bins=bins, range=[ranges[i,0], ranges[i,1]], histtype='step', normed=True)
-				if i==0:
-					e = np.linspace(1.3, 1.3*10, 100)
-					de = e[1] - e[0]
-					dfde = dfdE(e, 0.4, 1.3)
-					dfde = dfde/np.sum(dfde)/de
-					plt.plot(e, dfde, 'r-', linewidth=2.0)
-				else:
-					p = np.linspace(-1.3*5, 1.3*5, 100)
-					dp = p[1] - p[0]
-					dfdp = dfdP(p, 0.4, 1.3)
-					dfdp = dfdp/np.sum(dfdp)/dp
-					plt.plot(p, dfdp, 'r-', linewidth=2.0)
-				plt.xlim(ranges[i,0], ranges[i,1])
-			else:
-				plt.hist2d(ds[j], ds[i], range=[[ranges[j,0], ranges[j,1]],[ranges[i,0], ranges[i,1]]], bins=bins)
-				plt.xlim(ranges[j,0], ranges[j,1])
-				plt.ylim(ranges[i,0], ranges[i,1])
 
 #-------------C/Python Wrapper functions--------------------------------------------
 cpdef boost4_ByCoM(vector[double] & A, vector[double] & B):
@@ -149,26 +116,22 @@ cdef class event:
 					t, x, y, z = deref(it).x
 					tauQ = sqrt(t**2 - z**2)
 			inc(it)
-		#plt.clf()
-		#plt.hist(self.C)
-		#plt.pause(0.1)
 		return status
 
-	cdef perform_HQ_step(self, particle & it):
+	cpdef perform_HQ_step(self, particle & it):
 		cdef double t, x, y, z, t_elapse_lab, tauQ, dt
 		cdef double T, vx, vy, vz
 		cdef vector[double] pnew
 		cdef int channel
 		t, x, y, z = it.x
-		cdef double Ncoll = (it.Nc + 1.), Ncoll2 = (it.Nc2 + 1.)
-		t_elapse_lab = (t - it.t_last)/Ncoll
-		t_elapse_lab2 = (t - it.t_last2)/Ncoll2
+		t_elapse_lab = (t - it.t_last)/(it.Nc + 1.)
+		t_elapse_lab2 = (t - it.t_last2)/(it.Nc2 + 1.)
 		
 		tauQ = sqrt(t**2 - z**2)
 		T, vx, vy, vz = self.hydro_reader.interpF(tauQ, [x, y, z, t], ['Temp', 'Vx', 'Vy', 'Vz'])	
 		# Note the change of units from GeV-1 (fm/c) to fm/c (GeV-1)
 		t_elapse_lab /= GeVm1_to_fmc
-		channel, dt, pnew = self.update_HQ(it.p, [vx, vy, vz], T, t_elapse_lab, t_elapse_lab2, Ncoll, Ncoll2)
+		channel, dt, pnew = self.update_HQ(it.p, [vx, vy, vz], T, t_elapse_lab, t_elapse_lab2)
 		dt *= GeVm1_to_fmc
 		if channel < 0:
 			it.x = freestream(it.x, it.p, dt)
@@ -189,7 +152,7 @@ cdef class event:
 				it.t_last2 = t + dt
 		return
 
-	cdef update_HQ(self, vector[double] & p1_lab, vector[double] & v3cell, double & Temp, double & mean_dt23_lab, double & mean_dt32_lab, double & Ncoll23, double & Ncoll32):
+	cpdef update_HQ(self, vector[double] & p1_lab, vector[double] & v3cell, double & Temp, double & mean_dt23_lab, double & mean_dt32_lab):
 		# Define local variables
 		cdef double s, L1, L2, Lk, x2, xk, a1=0.6, a2=0.7
 		cdef double dt_lab, dt_cell
@@ -210,7 +173,7 @@ cdef class event:
 		dx32_cell = [pi/p1_lab[0]*mean_dt32_lab for pi in p1_cell]
 
 		# Sample channel in cell, return channl index and evolution time seen from cell
-		channel, dt_cell = self.hqsample.sample_channel(p1_cell[0], Temp, dx23_cell[0], dx32_cell[0], Ncoll23, Ncoll32)
+		channel, dt_cell = self.hqsample.sample_channel(p1_cell[0], Temp, dx23_cell[0], dx32_cell[0])
 		# Boost evolution time back to lab frame
 		dt_lab = p1_lab[0]/p1_cell[0]*dt_cell
 
@@ -236,15 +199,15 @@ cdef class event:
 		p1_com = boost4_By3(p1_cell_Z, v3com)
 		
 		if channel >= 4: # for 3 -> 2 kinetics
-			L1 = boost4_By3(IS[0], v3com)[0]
+			L1 = sqrt(p1_com[0]**2 - self.M**2)
 			L2 = boost4_By3(IS[1], v3com)[0]
 			Lk = boost4_By3(IS[2], v3com)[0]
-			x2 = L2/(L1+L2+Lk); 
+			x2 = L2/(L1+L2+Lk)
 			xk = Lk/(L1+L2+Lk)
 			a1 = x2 + xk; 
 			a2 = (x2 - xk)/(1. - a1)
 
-		dx23_com = boost4_By3(dx23_cell, v3com)
+		dx23_com = [pi/p1_cell_Z[0]*dx23_cell[0] for pi in p1_com]
 
 		# Sample final state momentum in Com frame, with incoming paticles on z-axis
 		FS = self.hqsample.sample_final(channel, s, Temp, dx23_com[0], a1, a2)
@@ -265,19 +228,12 @@ cdef class event:
 		return channel, dt_lab, p1_new
 
 	def HQ_hist(self):
-		x, y, z = [], [], []
-		E, px, py, pz = [], [], [], []
-		plt.clf()
+		pmu = []
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		while it != self.active_HQ.end():
-			E.append(deref(it).p[0])
-			px.append(deref(it).p[1])
-			py.append(deref(it).p[2])
-			pz.append(deref(it).p[3])
+			pmu.append( np.array(deref(it).p) )
 			inc(it)
-		E = np.array(E); px = np.array(px); py = np.array(py); pz = np.array(pz)
-		corner(np.array([E, px, py, pz]), ranges=np.array([[0,11], [-4,4], [-4,4], [-4,11]]))
-		plt.pause(0.02)
+		return np.array(pmu)
 
 	def HQ_xy(self):
 		x, y = [], []
