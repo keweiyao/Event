@@ -5,7 +5,7 @@ import event
 import h5py
 
 # A static medium dictionary
-medium = {'Temp': 0.3, 
+medium = {'Temp': 0.4, 
 		  'Vx'	: 0.0, 
 		  'Vy'	: 0.0, 
 		  'Vz'	: 0.0}
@@ -21,7 +21,7 @@ medium = {'Temp': 0.3,
 # 6. table = where to put the tabulated cross-secitons and scattering rates.
 
 # Static Meidum, only elastic
-e1 = event.event(mode='static', elastic=True, inelastic=True, detailed_balance=False, mass=1.3)
+e1 = event.event(mode='static', elastic=True, inelastic=True, detailed_balance=True, mass=1.3)
 
 # Static Meidum, elastic + inelastic
 #e1 = event.event(mode='static', elastic=True, inelastic=True)
@@ -30,14 +30,14 @@ e1 = event.event(mode='static', elastic=True, inelastic=True, detailed_balance=F
 #e1 = event.event(mode='dynamic', hydrofile=sys.argv[1], inelastic=False)
 
 # Dynamic Meidum, elastic + inelastic
-#e1 = event.event(mode='dynamic', hydrofile=sys.argv[1], inelastic=True)
+#e1 = event.event(mode='dynamic', hydrofile=sys.argv[1], inelastic=True, detailed_balance=True)
 
 
 e1.initialize_HQ(NQ=10000)
 
 f = h5py.File("particledata-22-23.hdf5", 'w')
 plt.figure(figsize=(10, 10))
-for i in range(100):
+for i in range(300):
 	print "t = ", e1.sys_time()
 	status = e1.perform_hydro_step(StaticPropertyDictionary=medium)
 	ds = e1.HQ_hist()

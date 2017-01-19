@@ -34,33 +34,30 @@ plt.show()
 for it, dt in enumerate(dtx):
 	plt.subplot(2, 5, it+1)
 	for iT, T in enumerate(t34):
-		scale = 1.0*dt**2/T**2
+		scale = dt/T**2
 		plt.plot(s34, x3[it, iT]/scale, 'b-')
 		plt.plot(s34, x4[it, iT]/scale, 'y-')
 	#plt.ylim(1e-3, 1e0)
 	#plt.semilogy()
 plt.show()
-"""
 
 
-"""
+
 N = 10
 A1 = np.linspace(0.501, 0.999, 20)
-A2 = np.linspace(-0.999, 0.999, 10)
+A2 = np.linspace(-0.999, 0.999, 20)
 for i1, a1 in enumerate(A1[::2]):
-	for i2, a2 in enumerate(A2[::1]):
+	for i2, a2 in enumerate(A2[::2]):
 		plt.subplot(N, N, i1*N + i2 + 1)
 		for iT, T in enumerate(t56):
-			xk = 0.5*(a1*a2 + a1 - a2)
 			x2 = 0.5*(-a1*a2 + a1 + a2)
-			scale = s56**2/T/T/x2
-			plt.plot(s56, f5[i2, 2*i1, iT]/scale, 'k-')
-			plt.plot(s56, f6[i2, 2*i1, iT]/scale, 'c-')
+			scale = (s56**2 - M2)/T**2/x2
+			plt.plot(s56, f5[2*i2, 2*i1, iT]/scale, 'k-')
+			plt.plot(s56, f6[2*i2, 2*i1, iT]/scale, 'c-')
 		#plt.ylim(0, 200)
 		#plt.semilogy()
 plt.show()
 """
-
 
 def myplot(folder):
 	Er = np.linspace(1.01*M, 100.*M, 100)

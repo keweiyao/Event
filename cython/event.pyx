@@ -116,6 +116,9 @@ cdef class event:
 					t, x, y, z = deref(it).x
 					tauQ = sqrt(t**2 - z**2)
 			inc(it)
+		#plt.clf()
+		#plt.hist(self.C)
+		#plt.pause(0.1)
 		return status
 
 	cpdef perform_HQ_step(self, particle & it):
@@ -131,25 +134,22 @@ cdef class event:
 		T, vx, vy, vz = self.hydro_reader.interpF(tauQ, [x, y, z, t], ['Temp', 'Vx', 'Vy', 'Vz'])	
 		# Note the change of units from GeV-1 (fm/c) to fm/c (GeV-1)
 		t_elapse_lab /= GeVm1_to_fmc
-		channel, dt, pnew = self.update_HQ(it.p, [vx, vy, vz], T, t_elapse_lab, t_elapse_lab2)
+		t_elapse_lab2 /= GeVm1_to_fmc
+		channel, dt, pnew = self.update_HQ(it.p, [vx, vy, vz], T, t_elapse_lab, t_elapse_lab2)		
 		dt *= GeVm1_to_fmc
 		if channel < 0:
 			it.x = freestream(it.x, it.p, dt)
 		else:
-			#self.C.append(channel)
 			it.x = freestream(it.x, it.p, dt)
 			it.p = pnew
-			if channel < 2:
-				it.Nc += 1.
-				it.Nc2 += 1
-			elif channel < 4:	
+			if channel == 2 or channel == 3:	
 				it.Nc = 0.
-				it.Nc2 += 1	
 				it.t_last = t + dt
-			else:	
+			if channel == 4 or channel == 5:	
 				it.Nc2 = 0.	
-				it.Nc += 1.
 				it.t_last2 = t + dt
+			it.Nc += 1.
+			it.Nc2 += 1.
 		return
 
 	cpdef update_HQ(self, vector[double] & p1_lab, vector[double] & v3cell, double & Temp, double & mean_dt23_lab, double & mean_dt32_lab):
@@ -174,6 +174,8 @@ cdef class event:
 
 		# Sample channel in cell, return channl index and evolution time seen from cell
 		channel, dt_cell = self.hqsample.sample_channel(p1_cell[0], Temp, dx23_cell[0], dx32_cell[0])
+		#if channel >= 0:
+		#	self.C.append(channel)		
 		# Boost evolution time back to lab frame
 		dt_lab = p1_lab[0]/p1_cell[0]*dt_cell
 
@@ -227,15 +229,11 @@ cdef class event:
 		# return updated momentum of heavy quark
 		return channel, dt_lab, p1_new
 
-	def HQ_hist(self):
-		pmu = []
-		cdef vector[particle].iterator it = self.active_HQ.begin()
-		while it != self.active_HQ.end():
-			pmu.append( np.array(deref(it).p) )
-			inc(it)
-		return np.array(pmu)
+	cpdef HQ_hist(self):
+		data = [p.p for p in self.active_HQ]
+		return np.array(data)
 
-	def HQ_xy(self):
+	cpdef HQ_xy(self):
 		x, y = [], []
 		#plt.clf()
 		cdef vector[particle].iterator it = self.active_HQ.begin()

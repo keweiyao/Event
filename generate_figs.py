@@ -25,13 +25,13 @@ def corner(ds, ranges, bins=50, title=''):
 					
 					e = np.linspace(1.3, 1.3*10, 100)
 					de = e[1] - e[0]
-					dfde = dfdE(e, 0.3, 1.3)
+					dfde = dfdE(e, 0.4, 1.3)
 					dfde = dfde/np.sum(dfde)/de
 					plt.plot(e, dfde, 'r-', linewidth=2.0)
 				else:
 					p = np.linspace(-1.3*5, 1.3*5, 100)
 					dp = p[1] - p[0]
-					dfdp = dfdP(p, 0.3, 1.3)
+					dfdp = dfdP(p, 0.4, 1.3)
 					dfdp = dfdp/np.sum(dfdp)/dp
 					plt.plot(p, dfdp, 'r-', linewidth=2.0)
 				plt.xlim(ranges[i,0], ranges[i,1])
@@ -53,26 +53,28 @@ def compare(ds1, ds2, ds3, ranges, bins=100, title=''):
 		if i==0:
 			e = np.linspace(1.3, 1.3*10, 1000)
 			de = e[1] - e[0]
-			dfde = dfdE(e, 0.3, 1.3)
+			dfde = dfdE(e, 0.4, 1.3)
 			dfde = dfde/np.sum(dfde)/de
 			plt.plot(e, dfde, 'k--', linewidth=1.0)
 		else:
 			p = np.linspace(-1.3*5, 1.3*5, 1000)
 			dp = p[1] - p[0]
-			dfdp = dfdP(p, 0.3, 1.3)
+			dfdp = dfdP(p, 0.4, 1.3)
 			dfdp = dfdp/np.sum(dfdp)/dp
 			plt.plot(p, dfdp, 'k--', linewidth=1.0)
 		plt.xlim(ranges[i,0], ranges[i,1])
 	plt.title(title)
 	plt.pause(0.1)
 
-f1 = h5py.File("particledata-22.hdf5", "r")
+#f1 = h5py.File("particledata-22.hdf5", "r")
 f2 = h5py.File("particledata-22-23.hdf5", "r")
-f3 = h5py.File("particledata-22-23-32.hdf5", "r")
-for i in range(100):
-	ds1 = f1['%d'%i].value
+#f3 = h5py.File("particledata-22-23-32.hdf5", "r")
+for i in range(300):
+	if i%3 != 0:
+		continue
+	#ds1 = f1['%d'%i].value
 	ds2 = f2['%d'%i].value
-	ds3 = f3['%d'%i].value
-	#corner(ds.T, ranges=np.array([[0, 11], [-4, 4], [-4, 4], [-4, 11]]), title="%1.1f"%(i*0.5))
-	compare(ds1.T, ds2.T, ds3.T, ranges=np.array([[0, 11], [-4, 4], [-4, 4], [-4, 11]]), title="%1.1f"%(i*0.5))
+	#ds3 = f3['%d'%i].value
+	corner(ds2.T, ranges=np.array([[0, 11], [-4, 4], [-4, 4], [-4, 11]]), title="%1.1f"%(i*0.3))
+	#compare(ds1.T, ds2.T, ds3.T, ranges=np.array([[0, 11], [-4, 4], [-4, 4], [-4, 11]]), title="%1.1f"%(i*0.5))
 plt.show()
