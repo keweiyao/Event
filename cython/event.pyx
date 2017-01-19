@@ -1,16 +1,18 @@
+import numpy as np
+import matplotlib.pyplot as plt
 import sys
+
 from libcpp cimport bool
 from libcpp.vector cimport vector
 from libc.stdlib cimport rand, RAND_MAX
 from libc.math cimport *
 from cython.operator cimport dereference as deref, preincrement as inc
-import numpy as np
-cimport numpy as np
-import matplotlib.pyplot as plt
+
 sys.path.append('../HQ-Evo/')
 sys.path.append('../Medium-Reader')
 import HqEvo
 import medium
+
 from event cimport *
 
 cdef double GeVm1_to_fmc = 0.197
@@ -79,22 +81,21 @@ cdef class event:
 			pz = 10.
 			E = sqrt(self.M**2 + pt**2 + pz**2)
 			
+			deref(it).p.resize(4)
+			deref(it).x.resize(4)
 			deref(it).p = [E, pt*cos(phipt), pt*sin(phipt), pz]
+			deref(it).t_last = -rand()*1./RAND_MAX; deref(it).t_last2 = -rand()*1./RAND_MAX
+			deref(it).Nc = 0.; deref(it).Nc2 = 0.
 			if self.mode == 'dynamic':
-				free_time = self.tau0/sqrt(1. - (pz/E)**2)
 				# free streaming to hydro starting time
+				free_time = self.tau0/sqrt(1. - (pz/E)**2)
 				deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
 				deref(it).x = freestream(deref(it).x, deref(it).p, free_time)
-				deref(it).t_last = 0.; deref(it).t_last2 = 0.
-				deref(it).Nc = 0.; deref(it).Nc2 = 0.
-			else:
+			if self.mode == 'static':
 				deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
-				deref(it).t_last = -rand()*1./RAND_MAX; deref(it).t_last2 = -rand()*1./RAND_MAX
-				deref(it).Nc = 0.; deref(it).Nc2 = 0.
 			inc(it)
 
 	cpdef perform_hydro_step(self, StaticPropertyDictionary=None):
-		#self.C = []
 		status = True
 		if self.mode == 'dynamic':
 			status = self.hydro_reader.load_next()
@@ -116,9 +117,6 @@ cdef class event:
 					t, x, y, z = deref(it).x
 					tauQ = sqrt(t**2 - z**2)
 			inc(it)
-		#plt.clf()
-		#plt.hist(self.C)
-		#plt.pause(0.1)
 		return status
 
 	cpdef perform_HQ_step(self, particle & it):
@@ -174,8 +172,7 @@ cdef class event:
 
 		# Sample channel in cell, return channl index and evolution time seen from cell
 		channel, dt_cell = self.hqsample.sample_channel(p1_cell[0], Temp, dx23_cell[0], dx32_cell[0])
-		#if channel >= 0:
-		#	self.C.append(channel)		
+
 		# Boost evolution time back to lab frame
 		dt_lab = p1_lab[0]/p1_cell[0]*dt_cell
 
@@ -232,6 +229,7 @@ cdef class event:
 	cpdef HQ_hist(self):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		cdef vector[ vector[double] ] data
+		data.clear()
 		while it != self.active_HQ.end():
 			data.push_back(deref(it).p)
 			inc(it)
