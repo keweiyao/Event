@@ -89,7 +89,7 @@ cdef class event:
 				deref(it).Nc = 0.; deref(it).Nc2 = 0.
 			else:
 				deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
-				deref(it).t_last = 0.; deref(it).t_last2 = 0.
+				deref(it).t_last = -rand()*1./RAND_MAX; deref(it).t_last2 = -rand()*1./RAND_MAX
 				deref(it).Nc = 0.; deref(it).Nc2 = 0.
 			inc(it)
 
@@ -230,26 +230,12 @@ cdef class event:
 		return channel, dt_lab, p1_new
 
 	cpdef HQ_hist(self):
-		data = [p.p for p in self.active_HQ]
-		return np.array(data)
-
-	cpdef HQ_xy(self):
-		x, y = [], []
-		#plt.clf()
 		cdef vector[particle].iterator it = self.active_HQ.begin()
-		if self.mode == 'dynamic':
-			A = self.hydro_reader.get_current_frame('Temp')
-			XL, XH, YL, YH = self.hydro_reader.boundary()
-			plt.imshow(np.flipud(A), extent = [XL, XH, YL, YH])
-			cb = plt.colorbar()
-			cb.set_label(r'$T$ [GeV]')
+		cdef vector[ vector[double] ] data
 		while it != self.active_HQ.end():
-			x.append(deref(it).x[1])
-			y.append(deref(it).x[2])
+			data.push_back(deref(it).p)
 			inc(it)
-		plt.scatter(x, y, s=0.3, alpha=0.3)
-		plt.axis([-15,15,-15,15])
-		plt.pause(0.02)
+		return np.array(data)
 
 
 
