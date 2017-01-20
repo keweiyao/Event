@@ -6,6 +6,7 @@ import sys
 M = 1.3
 M2 = M**2
 GeVm2_to_mb = 0.3849
+"""
 s12 = np.concatenate([np.linspace(1.01*M, 5.*M, 50), np.linspace(5.*M2, 30.*M, 50)])
 s34 = np.linspace(1.01*M, 30.*M, 50)
 
@@ -23,7 +24,7 @@ f5 = np.loadtxt('./tables/XQqg2Qq.dat').reshape(60, 8, 20, 20).T
 f6 = np.loadtxt('./tables/XQgg2Qg.dat').reshape(60, 8, 20, 20).T
 
 
-"""
+
 for i, T in enumerate(t12):
 	scale1 = 1.0/T**2
 	scale2 = 1.0/(1.0 - M2/s12**2)**2/T**2
