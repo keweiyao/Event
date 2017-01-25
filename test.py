@@ -33,7 +33,7 @@ e1 = event.event(mode='static', elastic=True, inelastic=True, detailed_balance=T
 #e1 = event.event(mode='dynamic', hydrofile=sys.argv[1], inelastic=True, detailed_balance=True)
 
 
-e1.initialize_HQ(NQ=1000)
+e1.initialize_HQ(NQ=5000)
 
 f = h5py.File("particledata-22-23-32.hdf5", 'w')
 plt.figure(figsize=(10, 10))
