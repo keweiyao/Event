@@ -7,6 +7,7 @@ import h5py
 M = 1.3
 M2 = M**2
 GeVm2_to_mb = 0.3849
+
 """
 f1 = h5py.File('./tables/XQq2Qq.hdf5')
 x1 = f1['Xsection-tab'].value
@@ -132,14 +133,14 @@ T6 = np.linspace(at['T_low'], at['T_high'], at['N_T'])
 dt6 = np.linspace(at['dt_low'], at['dt_high'], at['N_dt'])
 f6.close()
 
-plt.figure(figsize=(15, 8))
+plt.figure(figsize=(16, 8))
 
 for it, dt in enumerate(dt3):
 	plt.subplot(2, 5, it+1)
-	for iT, T in enumerate(T1):
+	for iT, T in enumerate(T1[::2]):
 		scale12 = 1.#T**0.4
-		plt.plot(E1, R1[:, iT]/scale12, 'r-', lw=1, label=r'$Qq\rightarrow Qq$' if iT==0 and it==0 else '')
-		plt.plot(E2, R2[:, iT]/scale12, 'g-', lw=1, label=r'$Qg\rightarrow Qg$' if iT==0 and it==0 else '')
+		plt.plot(E1, R1[:, iT*2]/scale12, 'r-', lw=1, label=r'$Qq\rightarrow Qq$' if iT==0 and it==0 else '')
+		plt.plot(E2, R2[:, iT*2]/scale12, 'g-', lw=1, label=r'$Qg\rightarrow Qg$' if iT==0 and it==0 else '')
 	for iT, T in enumerate(T3):
 		scale34 = 1.#dt**2/Er**0.75*T**2.6
 		plt.plot(E3, R3[:, iT, it]/scale34, 'y-', lw=2, label=r'$Qq\rightarrow Qqg$' if iT==0 and it==1 else '')
@@ -152,6 +153,7 @@ for it, dt in enumerate(dt3):
 		plt.ylabel(r"$\Gamma$ [GeV]", size=20)
 	if it >= 5:
 		plt.xlabel(r"$E_{HQ}$ [GeV]", size=20)
+		plt.xticks([0, 25, 50, 75, 100, 125])
 	if it <5 and it > 0:
 		plt.xticks([])
 		plt.yticks([])
@@ -160,8 +162,9 @@ for it, dt in enumerate(dt3):
 	if it==0:
 		plt.xticks([])
 	plt.legend(loc='best', fontsize=20, framealpha=0.0)
-	plt.title(r"$\langle \Delta t\rangle = %1.1f$ fm/c"%dt, size=15)
-	plt.semilogy()
+
+	plt.title(r"$\langle \Delta t\rangle = %1.1f$ GeV${}^{-1}$"%dt, size=15)
+
 plt.subplots_adjust(wspace=0., hspace=0.15)
 plt.show()
 

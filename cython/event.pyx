@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import sys
 
 from libcpp cimport bool
@@ -41,7 +40,10 @@ cdef extern from "../src/utility.h":
 
 #-----------Event Class---------------------------------------------
 cdef freestream(vector[double] & x, vector[double] & p, double dt):
-	return [x[0]+dt, x[1]+p[1]/p[0]*dt, x[2]+p[2]/p[0]*dt, x[3]+p[3]/p[0]*dt]
+	x[0] += dt
+	x[1] += p[1]/p[0]*dt
+	x[2] += p[2]/p[0]*dt
+	x[3] += p[3]/p[0]*dt
 
 cdef class event:
 	cdef object hydro_reader, hqsample, mode, C
@@ -90,7 +92,7 @@ cdef class event:
 				# free streaming to hydro starting time
 				free_time = self.tau0/sqrt(1. - (pz/E)**2)
 				deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
-				deref(it).x = freestream(deref(it).x, deref(it).p, free_time)
+				freestream(deref(it).x, deref(it).p, free_time)
 			if self.mode == 'static':
 				deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
 			inc(it)
@@ -133,12 +135,17 @@ cdef class event:
 		# Note the change of units from GeV-1 (fm/c) to fm/c (GeV-1)
 		t_elapse_lab /= GeVm1_to_fmc
 		t_elapse_lab2 /= GeVm1_to_fmc
+		cdef double v2 = vx**2 + vy**2 + vz**2
+		if v2 > 0.99999:
+			vx /= v2*1.0001
+			vy /= v2*1.0001
+			vz /= v2*1.0001
 		channel, dt, pnew = self.update_HQ(it.p, [vx, vy, vz], T, t_elapse_lab, t_elapse_lab2)		
 		dt *= GeVm1_to_fmc
 		if channel < 0:
-			it.x = freestream(it.x, it.p, dt)
+			freestream(it.x, it.p, dt)
 		else:
-			it.x = freestream(it.x, it.p, dt)
+			freestream(it.x, it.p, dt)
 			it.p = pnew
 			if channel == 2 or channel == 3:	
 				it.Nc = 0.
@@ -179,12 +186,10 @@ cdef class event:
 		# If not scattered, return channel=-1, evolution time in Lab frame and origin al p1(lab)
 		if channel < 0:
 			return channel, dt_lab, p1_lab
-
 		# Sample initial state and return initial state particle four vectors 
 		# Imagine rotate p1_cell to align with z-direction, construct p2_cell_align, ...
 		IS = self.hqsample.sample_initial(channel, p1_cell[0], Temp, dx23_cell[0], dx32_cell[0])
 		p1_cell_Z = IS[0]
-
 		# Center of mass frame of p1_cell_align and other particles, and take down orientation of p1_com
 		cdef size_t i=0
 		Pcom = [0., 0., 0., 0.]
@@ -196,7 +201,6 @@ cdef class event:
 		v3com = [Pcom[i+1]/Pcom[0] for i in range(3)]
 
 		p1_com = boost4_By3(p1_cell_Z, v3com)
-		
 		if channel >= 4: # for 3 -> 2 kinetics
 			L1 = sqrt(p1_com[0]**2 - self.M**2)
 			L2 = boost4_By3(IS[1], v3com)[0]
@@ -205,13 +209,12 @@ cdef class event:
 			xk = Lk/(L1+L2+Lk)
 			a1 = x2 + xk; 
 			a2 = (x2 - xk)/(1. - a1)
-
+		
 		dx23_com = [pi/p1_cell_Z[0]*dx23_cell[0] for pi in p1_com]
 
 		# Sample final state momentum in Com frame, with incoming paticles on z-axis
 		FS = self.hqsample.sample_final(channel, s, Temp, dx23_com[0], a1, a2)
 		p1_com_Z_new = FS[0]
-
 		# Rotate final states back to original Com frame (not z-axis aligened)
 		p1_com_new = rotate_back_from_D(p1_com_Z_new, p1_com[1], p1_com[2], p1_com[3])
 	
