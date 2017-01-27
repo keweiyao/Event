@@ -14,6 +14,7 @@ def dfdP(p, T, M):
 
 #-------------Corner plot function-------------------------------------------------
 def corner(ds, ranges, bins=50, title=''):
+	T = 0.3
 	plt.clf()
 	N = ds.shape[0]
 	for i in range(N):
@@ -25,13 +26,13 @@ def corner(ds, ranges, bins=50, title=''):
 					
 					e = np.linspace(1.3, 1.3*10, 100)
 					de = e[1] - e[0]
-					dfde = dfdE(e, 0.4, 1.3)
+					dfde = dfdE(e, T, 1.3)
 					dfde = dfde/np.sum(dfde)/de
 					plt.plot(e, dfde, 'r-', linewidth=2.0)
 				else:
 					p = np.linspace(-1.3*5, 1.3*5, 100)
 					dp = p[1] - p[0]
-					dfdp = dfdP(p, 0.4, 1.3)
+					dfdp = dfdP(p, T, 1.3)
 					dfdp = dfdp/np.sum(dfdp)/dp
 					plt.plot(p, dfdp, 'r-', linewidth=2.0)
 				plt.xlim(ranges[i,0], ranges[i,1])
@@ -97,9 +98,9 @@ plt.figure(figsize=(16,12))
 for i in range(100):
 	if i%1 != 0:
 		continue
-	ds1 = f1['%d'%i].value
-	ds2 = f2['%d'%i].value
-	ds3 = f3['%d'%i].value
-	#corner(ds1.T, ranges=np.array([[0, 11], [-4, 4], [-4, 4], [-4, 11]]), title="%1.1f"%(i*0.5))
-	compare(ds1.T, ds2.T, ds3.T, ranges=np.array([[1.3, 11.], [-4, 4], [-4, 4], [-3, 11]]), title=r"$t_{cell} = %1.1f$ fm/c"%(i*0.5), name="%d"%i)
+	ds1 = f1['%d-p'%i].value
+	#ds2 = f2['%d'%i].value
+	#ds3 = f3['%d'%i].value
+	corner(ds1.T, ranges=np.array([[0, 5], [-5, 5], [-5, 5], [-5, 5]]), title="%1.1f"%(i*0.1))
+	#compare(ds1.T, ds2.T, ds3.T, ranges=np.array([[1.3, 11.], [-4, 4], [-4, 4], [-3, 11]]), title=r"$t_{cell} = %1.1f$ fm/c"%(i*0.5), name="%d"%i)
 plt.show()

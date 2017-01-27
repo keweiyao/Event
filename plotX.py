@@ -8,7 +8,7 @@ M = 1.3
 M2 = M**2
 GeVm2_to_mb = 0.3849
 
-"""
+
 f1 = h5py.File('./tables/XQq2Qq.hdf5')
 x1 = f1['Xsection-tab'].value
 at = f1['Xsection-tab'].attrs
@@ -76,16 +76,16 @@ plt.show()
 
 
 N = 10
-for i1, a1 in enumerate(a15[::1]):
-	for i2, a2 in enumerate(a25[::1]):
+for i1, a1 in enumerate(a15[::2]):
+	for i2, a2 in enumerate(a25[::2]):
 		plt.subplot(N, N, i1*N + i2 + 1)
 		for iT, T in enumerate(T5):
 			x2 = 0.5*(-a1*a2 + a1 + a2)
 			scale = 1.#*(ss5**2 - M2)/T**2/x2
-			plt.plot(ss5, x5[:, iT, i1, i2]*scale, 'k-')
-			plt.plot(ss6, x6[:, iT, i1, i2]*scale, 'c-')
+			plt.plot(ss5, x5[:, iT, i1*2, i2*2]*scale, 'k-')
+			plt.plot(ss6, x6[:, iT, i1*2, i2*2]*scale, 'c-')
 plt.show()
-"""
+
 
 f1 = h5py.File('./tables/RQq2Qq.hdf5')
 R1 = f1['Rates-tab'].value
@@ -138,17 +138,17 @@ plt.figure(figsize=(16, 8))
 for it, dt in enumerate(dt3):
 	plt.subplot(2, 5, it+1)
 	for iT, T in enumerate(T1[::2]):
-		scale12 = 1.#T**0.4
+		scale12 = 1.#*T**0.4
 		plt.plot(E1, R1[:, iT*2]/scale12, 'r-', lw=1, label=r'$Qq\rightarrow Qq$' if iT==0 and it==0 else '')
 		plt.plot(E2, R2[:, iT*2]/scale12, 'g-', lw=1, label=r'$Qg\rightarrow Qg$' if iT==0 and it==0 else '')
 	for iT, T in enumerate(T3):
-		scale34 = 1.#dt**2/Er**0.75*T**2.6
+		scale34 = 1.#*dt**2/E3**0.75*T**2.6
 		plt.plot(E3, R3[:, iT, it]/scale34, 'y-', lw=2, label=r'$Qq\rightarrow Qqg$' if iT==0 and it==1 else '')
 		plt.plot(E4, R4[:, iT, it]/scale34, 'b-', lw=2, label=r'$Qg\rightarrow Qgg$' if iT==0 and it==1 else '')
-		scale56 = 1.#dtr2[it]**2/Er2**1.4*T**3.5
-		plt.plot(E5, R5[:, iT, it]/scale56, 'y--', lw=2, label=r'$Qqg\rightarrow Qq$' if iT==0 and it==2 else '')
-		plt.plot(E6, R6[:, iT, it]/scale56, 'b--', lw=2, label=r'$Qgg\rightarrow Qg$' if iT==0 and it==2 else '')
-	plt.ylim(1e-6, 2e0)
+		scale56 = 1.#*dt**2/E5**0.5*T**3.5
+		plt.plot(E5, R5[:, iT, it]/scale56, 'c-', lw=2, label=r'$Qqg\rightarrow Qq$' if iT==0 and it==2 else '')
+		plt.plot(E6, R6[:, iT, it]/scale56, 'k-', lw=2, label=r'$Qgg\rightarrow Qg$' if iT==0 and it==2 else '')
+	#plt.ylim(0., 1.5)
 	if it == 0 or it == 5:
 		plt.ylabel(r"$\Gamma$ [GeV]", size=20)
 	if it >= 5:
@@ -162,7 +162,7 @@ for it, dt in enumerate(dt3):
 	if it==0:
 		plt.xticks([])
 	plt.legend(loc='best', fontsize=20, framealpha=0.0)
-
+	#plt.semilogy()
 	plt.title(r"$\langle \Delta t\rangle = %1.1f$ GeV${}^{-1}$"%dt, size=15)
 
 plt.subplots_adjust(wspace=0., hspace=0.15)

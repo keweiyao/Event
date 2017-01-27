@@ -6,6 +6,7 @@ from libcpp.vector cimport vector
 from libc.stdlib cimport rand, RAND_MAX
 from libc.math cimport *
 from cython.operator cimport dereference as deref, preincrement as inc
+cimport numpy as np
 
 sys.path.append('../HQ-Evo/')
 sys.path.append('../Medium-Reader')
@@ -52,10 +53,10 @@ cdef class event:
 	cdef vector[particle] frzout_HQ
 	cdef double tau0, dtau, tau
 	
-	def __cinit__(self, mode="dynamic", hydrofile=None, mass=1.3, elastic=True, inelastic=False, detailed_balance=False, table_folder='./tables'):
+	def __cinit__(self, mode="dynamic", hydrofile=None, static_dt=0.5, mass=1.3, elastic=True, inelastic=False, detailed_balance=False, table_folder='./tables'):
 		self.mode = mode
 		self.M = mass
-		self.hydro_reader = medium.Medium(mode=mode, hydrofilename=hydrofile)
+		self.hydro_reader = medium.Medium(mode=mode, hydrofilename=hydrofile, static_dt=static_dt)
 		self.hqsample = HqEvo.HqEvo(mass=mass, elastic=elastic, inelastic=inelastic, detailed_balance=detailed_balance, table_folder=table_folder)
 		self.tau0 = self.hydro_reader.init_tau()
 		self.dtau = self.hydro_reader.dtau()
@@ -64,9 +65,10 @@ cdef class event:
 	def sys_time(self):
 		return self.tau
 
-	cpdef initialize_HQ(self, NQ=100, XY_table=None, Pweight=None):
+	cpdef initialize_HQ(self, NQ=100, E0=10., XY_table=None, Pweight=None, dt_init=0.):
 		print "Uniform sampling transverse momentum with in circle pt2 < Const"
 		print "Zero longitudinal momentum"
+		self.active_HQ.clear()
 		self.active_HQ.resize(NQ)
 		cdef double pt, phipt, r, phir, E, pz, free_time
 		cdef particle Q
@@ -76,25 +78,24 @@ cdef class event:
 
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		while it != self.active_HQ.end():
-			pt = sqrt((0.01*rand())/RAND_MAX)
-			phipt = (2.*M_PI*rand())/RAND_MAX
-			r = sqrt((4.*rand())/RAND_MAX)
-			phir = (2.*M_PI*rand())/RAND_MAX
-			pz = 10.
-			E = sqrt(self.M**2 + pt**2 + pz**2)
+			E = E0
+			p = sqrt(E0**2 - self.M**2)
+			phipt = rand()*2.*M_PI/RAND_MAX
+			cospz = rand()*2./RAND_MAX- 1.
+			sinpz = sqrt(1. - cospz**2)
 			
 			deref(it).p.resize(4)
 			deref(it).x.resize(4)
-			deref(it).p = [E, pt*cos(phipt), pt*sin(phipt), pz]
+			deref(it).p = [E, p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]
 			deref(it).t_last = -rand()*1./RAND_MAX; deref(it).t_last2 = -rand()*1./RAND_MAX
 			deref(it).Nc = 0.; deref(it).Nc2 = 0.
 			if self.mode == 'dynamic':
 				# free streaming to hydro starting time
 				free_time = self.tau0/sqrt(1. - (pz/E)**2)
-				deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
+				deref(it).x = [dt_init, rand()*5./RAND_MAX, rand()*5./RAND_MAX, rand()*5./RAND_MAX]
 				freestream(deref(it).x, deref(it).p, free_time)
 			if self.mode == 'static':
-				deref(it).x = [0.0, r*cos(phir), r*sin(phir), 0.0]
+				deref(it).x = [dt_init, rand()*5./RAND_MAX, rand()*5./RAND_MAX, rand()*5./RAND_MAX]
 			inc(it)
 
 	cpdef perform_hydro_step(self, StaticPropertyDictionary=None):
@@ -231,12 +232,14 @@ cdef class event:
 
 	cpdef HQ_hist(self):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
-		cdef vector[ vector[double] ] data
-		data.clear()
+		cdef vector[ vector[double] ] datap, datax
+		datap.clear()
+		datax.clear()
 		while it != self.active_HQ.end():
-			data.push_back(deref(it).p)
+			datap.push_back(deref(it).p)
+			datax.push_back(deref(it).x)
 			inc(it)
-		return np.array(data)
+		return np.array(datap), np.array(datax)
 
 
 
