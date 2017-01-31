@@ -87,7 +87,7 @@ cdef class event:
 			deref(it).p.resize(4)
 			deref(it).x.resize(4)
 			deref(it).p = [E, p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]
-			deref(it).t_last = -rand()*1./RAND_MAX; deref(it).t_last2 = -rand()*1./RAND_MAX
+			deref(it).t_last = -rand()*1.0/RAND_MAX; deref(it).t_last2 = -rand()*1.0/RAND_MAX
 			deref(it).Nc = 0.; deref(it).Nc2 = 0.
 			if self.mode == 'dynamic':
 				# free streaming to hydro starting time
@@ -97,7 +97,16 @@ cdef class event:
 			if self.mode == 'static':
 				deref(it).x = [dt_init, rand()*5./RAND_MAX, rand()*5./RAND_MAX, rand()*5./RAND_MAX]
 			inc(it)
-
+	cpdef reset_HQ(self, E0=10.):
+		cdef vector[particle].iterator it = self.active_HQ.begin()
+		while it != self.active_HQ.end():
+			E = E0
+			p = sqrt(E0**2 - self.M**2)
+			phipt = rand()*2.*M_PI/RAND_MAX
+			cospz = rand()*2./RAND_MAX- 1.
+			sinpz = sqrt(1. - cospz**2)
+			deref(it).p = [E, p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]
+			inc(it)
 	cpdef perform_hydro_step(self, StaticPropertyDictionary=None):
 		status = True
 		if self.mode == 'dynamic':

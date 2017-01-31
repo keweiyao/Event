@@ -45,7 +45,7 @@ def corner(ds, ranges, bins=50, title=''):
 
 E0 = (10.**2+1.3**2)**0.5
 #-------------Corner plot function-------------------------------------------------
-def compare(ds1, ds2, ds3, ranges, bins=50, title='', name='hist'):
+def compare(ds1, ds2, ds3, ranges, bins=75, title='', name='hist'):
 	position = [1, 2, 4, 3]
 	plt.clf()
 	for i in range(4):
@@ -57,20 +57,20 @@ def compare(ds1, ds2, ds3, ranges, bins=50, title='', name='hist'):
 			plt.title(title, size=25)
 			e = np.linspace(1.3, 1.3*10, 10000)
 			de = e[1] - e[0]
-			dfde = dfdE(e, 0.4, 1.3)
+			dfde = dfdE(e, 0.2, 1.3)
 			dfde = dfde/np.sum(dfde)/de
-			plt.plot(e, dfde, 'k-', linewidth=2.0, label='Boltzmann $T = 0.4$ GeV')
+			plt.plot(e, dfde, 'k-', linewidth=2.0, label='Boltzmann $T = 0.2$ GeV')
 		else:
 			p = np.linspace(-1.3*5, 1.3*5, 10000)
 			dp = p[1] - p[0]
-			dfdp = dfdP(p, 0.4, 1.3)
+			dfdp = dfdP(p, 0.2, 1.3)
 			dfdp = dfdp/np.sum(dfdp)/dp
 			plt.plot(p, dfdp, 'k-', linewidth=2.0)
 			
 
 		plt.xlim(ranges[i,0], ranges[i,1])
-		#plt.semilogy()
-		plt.ylim(5e-3, 1e0)
+		plt.semilogy()
+		plt.ylim(1e-2, 3e0)
 		if position[i]==1:
 			plt.plot([E0, E0], [1e-5, 10.], 'k--', linewidth=2., label='Initial')
 			plt.xlabel("$E$ [GeV]", size=25)
@@ -86,7 +86,7 @@ def compare(ds1, ds2, ds3, ranges, bins=50, title='', name='hist'):
 			plt.plot([0., 0.], [1e-5, 10.], 'k--', linewidth=2.)
 			plt.xlabel("$p_y$ [GeV]", size=25)
 		if i==0:
-			plt.legend(loc = 'upper center', framealpha=0., fontsize=20)
+			plt.legend(loc = 'upper right', framealpha=0., fontsize=20)
 	plt.subplots_adjust(wspace=0., hspace=0.2)
 	plt.savefig("figs/"+"%s.png"%name)
 	plt.pause(0.1)
@@ -95,8 +95,8 @@ f1 = h5py.File("particledata-22.hdf5", "r")
 f2 = h5py.File("particledata-22-23.hdf5", "r")
 f3 = h5py.File("particledata-22-23-32.hdf5", "r")
 plt.figure(figsize=(16,12))
-for i in range(100):
-	if i%1 != 0:
+for i in range(200):
+	if i%2 != 0:
 		continue
 	ds1 = f1['%d-p'%i].value
 	#ds2 = f2['%d'%i].value

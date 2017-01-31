@@ -21,24 +21,28 @@ medium = {'Temp': 0.3,
 # 6. table = where to put the tabulated cross-secitons and scattering rates.
 
 # Static Meidum
+#e1 = event.event(mode='static', static_dt=0.1, elastic=True, inelastic=True, detailed_balance=True, mass=1.3)
 e1 = event.event(mode='static', static_dt=0.1, elastic=True, inelastic=False, detailed_balance=False, mass=1.3)
+
 
 # Dynamic Meidum
 #e1 = event.event(mode='dynamic', hydrofile=sys.argv[1], inelastic=True, detailed_balance=False)
 
-e1.initialize_HQ(NQ=100000, E0=1.35)
 
-f = h5py.File("particledata-22.hdf5", 'w')
-plt.figure(figsize=(10, 10))
-for i in range(50):
+f = h5py.File("particledata.hdf5", 'w')
+
+e1.initialize_HQ(NQ=100000, E0=1.31)
+for i in range(100):
 	print "t = ", e1.sys_time()
-	status = e1.perform_hydro_step(StaticPropertyDictionary=medium)
 	dsp, dsx = e1.HQ_hist()
+	f.create_dataset("%d-p"%(i*2), data=dsp)
+	f.create_dataset("%d-x"%(i*2), data=dsx)
+	status = e1.perform_hydro_step(StaticPropertyDictionary=medium)
 	if not status:
 		break
-	f.create_dataset("%d-p"%i, data=dsp)
-	f.create_dataset("%d-x"%i, data=dsx)
-	if i%2 == 1:
-		e1.initialize_HQ(NQ=100000, E0=1.35, dt_init=e1.sys_time())
+	dsp, dsx = e1.HQ_hist()
+	f.create_dataset("%d-p"%(i*2+1), data=dsp)
+	f.create_dataset("%d-x"%(i*2+1), data=dsx)
+	e1.reset_HQ(E0=1.31)
 f.close()
 

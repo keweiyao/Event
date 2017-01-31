@@ -6,3 +6,4 @@ cython/*.c
 cython/*.cpp
 figs/
 table*/
+Ds/

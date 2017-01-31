@@ -24,25 +24,30 @@ f = h5py.File(sys.argv[1])
 T = 0.3 # GeV
 M = 1.3 # GeV
 DsL = []
-for i in range(0,25,2):
-	Lp0 = f['%d-p'%(i)].value
-	Lp1 = f['%d-p'%(i+1)].value
-	Lx0 = f['%d-x'%(i)].value
-	Lx1 = f['%d-x'%(i+1)].value
+N = 50
+for k in range(0,4):
+	Lp0 = np.concatenate([f['%d-p'%(i)].value for i in range(N*k,N*(k+1),2)], axis=0)
+	Lp1 = np.concatenate([f['%d-p'%(i+1)].value for i in range(N*k,N*(k+1),2)], axis=0)
+	Lx0 = np.concatenate([f['%d-x'%(i)].value for i in range(N*k,N*(k+1),2)], axis=0)
+	Lx1 = np.concatenate([f['%d-x'%(i+1)].value for i in range(N*k,N*(k+1),2)], axis=0)
 	E0, L, dE, qx, qy, qz, pabs = np.array([calc(p0, p1, x0, x1) for p0, p1, x0, x1 in zip(Lp0, Lp1, Lx0, Lx1)]).T
 	sqL = np.sqrt(L)
 	dEL = dE/L
 	qL = np.array([qx/L/pabs*E0, qy/L/pabs*E0, qz/L/pabs*E0]).T
 	qsqL = np.array([qx/sqL, qy/sqL, qz/sqL]).T
 
-	index = ((E0>=1.3))
+	index = ((E0>=1.3) & (E0<=1.31))
 	print "Neff = ", np.sum(index)
 	#print np.mean(dEL[index], axis=0)
 	E0etaD = np.mean(qL[index], axis=0)[2]
-	kappa = 1./3.*(np.cov(qsqL.T)[0,0] + np.cov(qsqL.T)[1,1] + np.cov(qsqL.T)[2,2])
-	
+	M = np.cov(qsqL.T)
+	print M
+	kappa = 1./3.*(M[0,0] + M[1,1] + M[2,2])
+	print E0etaD
 	Ds = kappa/(2. * E0etaD**2)/0.197*2.*np.pi*T
 	DsL.append(Ds)
 	print Ds
+plt.plot(DsL)
+plt.show()
 print np.mean(DsL)
 	
