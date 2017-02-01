@@ -21,7 +21,7 @@ def calc(p0, p1, x0, x1):
 	return E0, L, p1[0]-p0[0], newiq[0], newiq[1], newiq[2], pabs
 	
 f = h5py.File(sys.argv[1])
-T = 0.3 # GeV
+T = 0.15 # GeV
 M = 1.3 # GeV
 DsL = []
 N = 50
@@ -36,7 +36,7 @@ for k in range(0,4):
 	qL = np.array([qx/L/pabs*E0, qy/L/pabs*E0, qz/L/pabs*E0]).T
 	qsqL = np.array([qx/sqL, qy/sqL, qz/sqL]).T
 
-	index = ((E0>=1.3) & (E0<=1.31))
+	index = ((E0>=1.3) & (E0<=1.4))
 	print "Neff = ", np.sum(index)
 	#print np.mean(dEL[index], axis=0)
 	E0etaD = np.mean(qL[index], axis=0)[2]

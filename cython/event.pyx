@@ -89,6 +89,7 @@ cdef class event:
 			deref(it).p = [E, p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]
 			deref(it).t_last = -rand()*1.0/RAND_MAX; deref(it).t_last2 = -rand()*1.0/RAND_MAX
 			deref(it).Nc = 0.; deref(it).Nc2 = 0.
+			deref(it).weight = 1.
 			if self.mode == 'dynamic':
 				# free streaming to hydro starting time
 				free_time = self.tau0/sqrt(1. - (pz/E)**2)
