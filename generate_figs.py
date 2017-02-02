@@ -14,7 +14,7 @@ def dfdP(p, T, M):
 
 #-------------Corner plot function-------------------------------------------------
 def corner(ds, ranges, bins=50, title=''):
-	T = 0.3
+	T = 0.5
 	plt.clf()
 	N = ds.shape[0]
 	for i in range(N):
@@ -91,9 +91,9 @@ def compare(ds1, ds2, ds3, ranges, bins=75, title='', name='hist'):
 	plt.savefig("figs/"+"%s.png"%name)
 	plt.pause(0.1)
 
-f1 = h5py.File("particledata-22.hdf5", "r")
-f2 = h5py.File("particledata-22-23.hdf5", "r")
-f3 = h5py.File("particledata-22-23-32.hdf5", "r")
+f1 = h5py.File("particledata.hdf5", "r")
+#f2 = h5py.File("particledata-22-23.hdf5", "r")
+#f3 = h5py.File("particledata-22-23-32.hdf5", "r")
 plt.figure(figsize=(16,12))
 for i in range(200):
 	if i%2 != 0:

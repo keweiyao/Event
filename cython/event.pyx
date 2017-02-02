@@ -1,6 +1,6 @@
 import numpy as np
 import sys
-
+import matplotlib.pyplot as plt
 from libcpp cimport bool
 from libcpp.vector cimport vector
 from libc.stdlib cimport rand, RAND_MAX
@@ -16,7 +16,10 @@ import medium
 from event cimport *
 
 cdef double GeVm1_to_fmc = 0.197
-
+cdef double f0(double x, double eta):
+	if x<1e-1:
+		x = 1e-1
+	return min(1./(exp(x) + eta), 2.)
 #-------------C/Python Wrapper functions--------------------------------------------
 cpdef boost4_ByCoM(vector[double] & A, vector[double] & B):
 	cdef vector[double] Ap, Bp, Pcom
@@ -92,7 +95,7 @@ cdef class event:
 			deref(it).weight = 1.
 			if self.mode == 'dynamic':
 				# free streaming to hydro starting time
-				free_time = self.tau0/sqrt(1. - (pz/E)**2)
+				free_time = self.tau0/sqrt(1. - (deref(it).p[3]/E)**2)
 				deref(it).x = [dt_init, rand()*5./RAND_MAX, rand()*5./RAND_MAX, rand()*5./RAND_MAX]
 				freestream(deref(it).x, deref(it).p, free_time)
 			if self.mode == 'static':
@@ -151,7 +154,7 @@ cdef class event:
 			vx /= v2*1.0001
 			vy /= v2*1.0001
 			vz /= v2*1.0001
-		channel, dt, pnew = self.update_HQ(it.p, [vx, vy, vz], T, t_elapse_lab, t_elapse_lab2)		
+		channel, dt, pnew= self.update_HQ(it.p, [vx, vy, vz], T, t_elapse_lab, t_elapse_lab2)		
 		dt *= GeVm1_to_fmc
 		if channel < 0:
 			freestream(it.x, it.p, dt)
@@ -176,7 +179,7 @@ cdef class event:
 		cdef vector[double] p1_cell, p1_cell_Z, p1_com, \
 							p1_com_Z_new, p1_com_new, \
 							p1_cell_Z_new, p1_cell_new,\
-							p1_new,					\
+							p1_new,	fs,				\
 							dx23_cell, dx32_cell, dx23_com, \
 							v3com 
 		cdef vector[ vector[double] ] IS, FS # initial states
@@ -225,19 +228,18 @@ cdef class event:
 
 		# Sample final state momentum in Com frame, with incoming paticles on z-axis
 		FS = self.hqsample.sample_final(channel, s, Temp, dx23_com[0], a1, a2)
+
 		p1_com_Z_new = FS[0]
 		# Rotate final states back to original Com frame (not z-axis aligened)
-		p1_com_new = rotate_back_from_D(p1_com_Z_new, p1_com[1], p1_com[2], p1_com[3])
-	
+		p1_com_new = rotate_back_from_D(p1_com_Z_new, p1_com[1], p1_com[2], p1_com[3])	
 		# boost back to cell frame z-aligned
-		p1_cell_Z_new = boost4_By3(p1_com_new, [-v3com[0], -v3com[1], -v3com[2]])
-		
+		p1_cell_Z_new = boost4_By3(p1_com_new, [-v3com[0], -v3com[1], -v3com[2]])	
 		# rotate back to original cell frame
 		p1_cell_new = rotate_back_from_D(p1_cell_Z_new, p1_cell[1], p1_cell[2], p1_cell[3])
-
 		# boost back to lab frame
 		p1_new = boost4_By3(p1_cell_new, [-v3cell[0], -v3cell[1], -v3cell[2]])
 		# return updated momentum of heavy quark
+
 		return channel, dt_lab, p1_new
 
 	cpdef HQ_hist(self):
