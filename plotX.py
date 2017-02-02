@@ -7,7 +7,7 @@ import h5py
 M = 1.3
 M2 = M**2
 GeVm2_to_mb = 0.3849
-
+"""
 
 f1 = h5py.File('./tables/XQq2Qq.hdf5')
 x1 = f1['Xsection-tab'].value
@@ -86,7 +86,7 @@ for i1, a1 in enumerate(a15[::2]):
 			plt.plot(ss6, x6[:, iT, i1*2, i2*2]*scale, 'c-')
 plt.show()
 
-
+"""
 f1 = h5py.File('./tables/RQq2Qq.hdf5')
 R1 = f1['Rates-tab'].value
 at = f1['Rates-tab'].attrs
@@ -116,7 +116,7 @@ E4 = np.concatenate([	np.linspace(at['E1_low'], at['E1_high'], at['N_E1'])])
 T4 = np.linspace(at['T_low'], at['T_high'], at['N_T'])
 dt4 = np.linspace(at['dt_low'], at['dt_high'], at['N_dt'])
 f4.close()
-
+"""
 f5 = h5py.File('./tables/RQqg2Qq.hdf5')
 R5 = f5['Rates-tab'].value
 at = f5['Rates-tab'].attrs
@@ -132,22 +132,22 @@ E6 = np.concatenate([	np.linspace(at['E1_low'], at['E1_high'], at['N_E1'])])
 T6 = np.linspace(at['T_low'], at['T_high'], at['N_T'])
 dt6 = np.linspace(at['dt_low'], at['dt_high'], at['N_dt'])
 f6.close()
-
+"""
 plt.figure(figsize=(16, 8))
 
 for it, dt in enumerate(dt3):
 	plt.subplot(2, 5, it+1)
-	for iT, T in enumerate(T1[::2]):
+	for iT, T in enumerate(T1[::1]):
 		scale12 = 1.#*T**0.4
-		plt.plot(E1, R1[:, iT*2]/scale12, 'r-', lw=1, label=r'$Qq\rightarrow Qq$' if iT==0 and it==0 else '')
-		plt.plot(E2, R2[:, iT*2]/scale12, 'g-', lw=1, label=r'$Qg\rightarrow Qg$' if iT==0 and it==0 else '')
+		plt.plot(E1, R1[:, iT]/scale12, 'r-', lw=1, label=r'$Qq\rightarrow Qq$' if iT==0 and it==0 else '')
+		plt.plot(E2, R2[:, iT]/scale12, 'g-', lw=1, label=r'$Qg\rightarrow Qg$' if iT==0 and it==0 else '')
 	for iT, T in enumerate(T3):
 		scale34 = 1.#*dt**2/E3**0.75*T**2.6
 		plt.plot(E3, R3[:, iT, it]/scale34, 'y-', lw=2, label=r'$Qq\rightarrow Qqg$' if iT==0 and it==1 else '')
 		plt.plot(E4, R4[:, iT, it]/scale34, 'b-', lw=2, label=r'$Qg\rightarrow Qgg$' if iT==0 and it==1 else '')
-		scale56 = 1.#*dt**2/E5**0.5*T**3.5
-		plt.plot(E5, R5[:, iT, it]/scale56, 'c-', lw=2, label=r'$Qqg\rightarrow Qq$' if iT==0 and it==2 else '')
-		plt.plot(E6, R6[:, iT, it]/scale56, 'k-', lw=2, label=r'$Qgg\rightarrow Qg$' if iT==0 and it==2 else '')
+		#scale56 = 1.#*dt**2/E5**0.5*T**3.5
+		#plt.plot(E5, R5[:, iT, it]/scale56, 'c-', lw=2, label=r'$Qqg\rightarrow Qq$' if iT==0 and it==2 else '')
+		#plt.plot(E6, R6[:, iT, it]/scale56, 'k-', lw=2, label=r'$Qgg\rightarrow Qg$' if iT==0 and it==2 else '')
 	#plt.ylim(0., 1.5)
 	if it == 0 or it == 5:
 		plt.ylabel(r"$\Gamma$ [GeV]", size=20)

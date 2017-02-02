@@ -101,6 +101,7 @@ cdef class event:
 			if self.mode == 'static':
 				deref(it).x = [dt_init, rand()*5./RAND_MAX, rand()*5./RAND_MAX, rand()*5./RAND_MAX]
 			inc(it)
+
 	cpdef reset_HQ(self, E0=10.):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		while it != self.active_HQ.end():
@@ -111,6 +112,7 @@ cdef class event:
 			sinpz = sqrt(1. - cospz**2)
 			deref(it).p = [E, p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]
 			inc(it)
+
 	cpdef perform_hydro_step(self, StaticPropertyDictionary=None):
 		status = True
 		if self.mode == 'dynamic':
