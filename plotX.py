@@ -89,6 +89,8 @@ plt.show()
 """
 f1 = h5py.File('./tables/RQq2Qq.hdf5')
 R1 = f1['Rates-tab'].value
+R11 = f1['Rates-1-tab'].value
+R12 = f1['Rates-2-tab'].value
 at = f1['Rates-tab'].attrs
 E1 = np.concatenate([	np.linspace(at['E1_low'], at['E1_high'], at['N_E1'])])
 T1 = np.linspace(at['T_low'], at['T_high'], at['N_T'])
@@ -101,6 +103,7 @@ E2 = np.concatenate([	np.linspace(at['E1_low'], at['E1_high'], at['N_E1'])])
 T2 = np.linspace(at['T_low'], at['T_high'], at['N_T'])
 f2.close()
 
+"""
 f3 = h5py.File('./tables/RQq2Qqg.hdf5')
 R3 = f3['Rates-tab'].value
 at = f3['Rates-tab'].attrs
@@ -116,7 +119,7 @@ E4 = np.concatenate([	np.linspace(at['E1_low'], at['E1_high'], at['N_E1'])])
 T4 = np.linspace(at['T_low'], at['T_high'], at['N_T'])
 dt4 = np.linspace(at['dt_low'], at['dt_high'], at['N_dt'])
 f4.close()
-"""
+
 f5 = h5py.File('./tables/RQqg2Qq.hdf5')
 R5 = f5['Rates-tab'].value
 at = f5['Rates-tab'].attrs
@@ -134,7 +137,29 @@ dt6 = np.linspace(at['dt_low'], at['dt_high'], at['N_dt'])
 f6.close()
 """
 plt.figure(figsize=(16, 8))
+pi = np.diag([0.0, -0.00022, 0.028467, -0.028716])
+print pi
+A = 0.
+B = 0.
+Ra = np.array(	 [
+				  [1, 0, 0],
+				  [0, np.cos(A), -np.sin(A)],
+				  [0., np.sin(A), np.cos(A)] ])
+Rb = np.array(	 [
+				  [np.cos(B), -np.sin(B), 0.],
+				  [np.sin(B), np.cos(B), 0.],
+					[0., 0., 1.]])
+R = np.dot(Rb, Ra)
+pi[1:, 1:] = np.dot(R, np.dot(pi[1:, 1:], R.T) )
 
+
+Rtot = R1 + (R11+R12)*pi[3,3]
+for iT, T in enumerate(T1[::2]):
+	scale12 = 1.#*T**0.4
+	plt.plot(E1, Rtot[:, iT*2]/R1[:, iT*2], 'r-', lw=1, label=r'$Qq\rightarrow Qq$' if iT==0 else '')
+	#plt.plot(E1, Rtot[:, iT*2]/scale12, 'g-', lw=1, label=r'$Qq\rightarrow Qq$ viscous' if iT==0 else '')
+
+"""
 for it, dt in enumerate(dt3):
 	plt.subplot(2, 5, it+1)
 	for iT, T in enumerate(T1[::1]):
@@ -145,9 +170,9 @@ for it, dt in enumerate(dt3):
 		scale34 = 1.#*dt**2/E3**0.75*T**2.6
 		plt.plot(E3, R3[:, iT, it]/scale34, 'y-', lw=2, label=r'$Qq\rightarrow Qqg$' if iT==0 and it==1 else '')
 		plt.plot(E4, R4[:, iT, it]/scale34, 'b-', lw=2, label=r'$Qg\rightarrow Qgg$' if iT==0 and it==1 else '')
-		#scale56 = 1.#*dt**2/E5**0.5*T**3.5
-		#plt.plot(E5, R5[:, iT, it]/scale56, 'c-', lw=2, label=r'$Qqg\rightarrow Qq$' if iT==0 and it==2 else '')
-		#plt.plot(E6, R6[:, iT, it]/scale56, 'k-', lw=2, label=r'$Qgg\rightarrow Qg$' if iT==0 and it==2 else '')
+		scale56 = 1.#*dt**2/E5**0.5*T**3.5
+		plt.plot(E5, R5[:, iT, it]/scale56, 'c-', lw=2, label=r'$Qqg\rightarrow Qq$' if iT==0 and it==2 else '')
+		plt.plot(E6, R6[:, iT, it]/scale56, 'k-', lw=2, label=r'$Qgg\rightarrow Qg$' if iT==0 and it==2 else '')
 	#plt.ylim(0., 1.5)
 	if it == 0 or it == 5:
 		plt.ylabel(r"$\Gamma$ [GeV]", size=20)
@@ -164,7 +189,7 @@ for it, dt in enumerate(dt3):
 	plt.legend(loc='best', fontsize=20, framealpha=0.0)
 	#plt.semilogy()
 	plt.title(r"$\langle \Delta t\rangle = %1.1f$ GeV${}^{-1}$"%dt, size=15)
-
+"""
 plt.subplots_adjust(wspace=0., hspace=0.15)
 plt.show()
 

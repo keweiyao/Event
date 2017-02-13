@@ -22,13 +22,13 @@ medium = {'Temp': 0.15,
 
 # Static Meidum
 #e1 = event.event(mode='static', static_dt=0.1, elastic=True, inelastic=True, detailed_balance=True, mass=1.3)
-e1 = event.event(mode='static', static_dt=1., elastic=True, inelastic=True, detailed_balance=True, mass=1.3)
+e1 = event.event(mode='static', static_dt=1., elastic=True, inelastic=False, detailed_balance=False, mass=1.3)
 
 
 # Dynamic Meidum
 #e1 = event.event(mode='dynamic', hydrofile=sys.argv[1], inelastic=True, detailed_balance=False)
 
-
+"""
 f = h5py.File("particledata.hdf5", 'w')
 
 e1.initialize_HQ(NQ=100000, E0=10.)
@@ -49,4 +49,5 @@ for i in range(10):
 	if not status:
 		break
 f.close()
+"""
 
