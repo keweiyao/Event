@@ -5,10 +5,13 @@ import event
 import h5py
 
 # A static medium dictionary
-medium = {'Temp': 0.15, 
+medium = {'Temp': 0.4, 
 		  'Vx'	: 0.0, 
 		  'Vy'	: 0.0, 
 		  'Vz'	: 0.0}
+
+def pT_weight(pt, y):
+	return 1.0/(1.0+pt**4)/np.cosh(y)
 
 # define an event:
 # Default arguments:
@@ -22,32 +25,24 @@ medium = {'Temp': 0.15,
 
 # Static Meidum
 #e1 = event.event(mode='static', static_dt=0.1, elastic=True, inelastic=True, detailed_balance=True, mass=1.3)
-e1 = event.event(mode='static', static_dt=1., elastic=True, inelastic=False, detailed_balance=False, mass=1.3)
+#e1 = event.event(mode='static', static_dt=0.5, elastic=True, inelastic=True, detailed_balance=True, mass=1.3)
 
 
 # Dynamic Meidum
-#e1 = event.event(mode='dynamic', hydrofile=sys.argv[1], inelastic=True, detailed_balance=False)
+Taa = np.loadtxt(sys.argv[1])
+e1 = event.event(mode='dynamic', hydrofile=sys.argv[2], inelastic=True, detailed_balance=False)
 
-"""
 f = h5py.File("particledata.hdf5", 'w')
 
-e1.initialize_HQ(NQ=100000, E0=10.)
+e1.initialize_HQ(NQ=1000, Taa=Taa)
 
-for i in range(10):
-	print "t = ", e1.sys_time()
-	e1.reset_HQ(E0=1.4*np.exp(0.45*i))
-
-	dsp, dsx = e1.HQ_hist()
-	f.create_dataset("%d-p"%(i*2), data=dsp)
-	f.create_dataset("%d-x"%(i*2), data=dsx)
-
+for i in range(200):
+	print "t = %1.2f [fm/c]"%e1.sys_time()
 	status = e1.perform_hydro_step(StaticPropertyDictionary=medium)
-
 	dsp, dsx = e1.HQ_hist()
-	f.create_dataset("%d-p"%(i*2+1), data=dsp)
-	f.create_dataset("%d-x"%(i*2+1), data=dsx)
+	f.create_dataset('p-%d'%i, data=dsp)
 	if not status:
 		break
 f.close()
-"""
+
 

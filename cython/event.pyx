@@ -16,21 +16,15 @@ import medium
 from event cimport *
 
 cdef double GeVm1_to_fmc = 0.197
-cdef double f0(double x, double eta):
-	if x<1e-1:
-		x = 1e-1
-	return min(1./(exp(x) + eta), 2.)
-#-------------C/Python Wrapper functions--------------------------------------------
-cpdef boost4_ByCoM(vector[double] & A, vector[double] & B):
-	cdef vector[double] Ap, Bp, Pcom
-	Ap.resize(4)
-	Bp.resize(4)
-	Pcom.resize(4)
-	cdef i
-	for i in range(4):
-		Pcom[i] = A[i] + B[i]
-	go_to_CoM(Pcom, A, B, Ap, Bp)
-	return Pcom, Ap, Bp
+
+cdef double default_df_dpt2dy(pT, y):
+	return 1.0/(1.0+pT**4)*1.0/cosh(y)
+
+cdef freestream(vector[double] & x, vector[double] & p, double dt):
+	x[0] += dt
+	x[1] += p[1]/p[0]*dt
+	x[2] += p[2]/p[0]*dt
+	x[3] += p[3]/p[0]*dt
 
 #-----------Particle data struct------------------------------------
 cdef extern from "../src/utility.h":
@@ -41,14 +35,14 @@ cdef extern from "../src/utility.h":
 		float Nc, Nc2
 		float weight
 
+#-----------Production vertex sampler class-------------------------
+class XY_sampler:
+	__slots__ = ['Taa']
+	def __init__(self, Taa):
+		self.Taa = Taa;
+	def sample_xy(self):
 
 #-----------Event Class---------------------------------------------
-cdef freestream(vector[double] & x, vector[double] & p, double dt):
-	x[0] += dt
-	x[1] += p[1]/p[0]*dt
-	x[2] += p[2]/p[0]*dt
-	x[3] += p[3]/p[0]*dt
-
 cdef class event:
 	cdef object hydro_reader, hqsample, mode, C
 	cdef double M
@@ -68,73 +62,93 @@ cdef class event:
 	def sys_time(self):
 		return self.tau
 
-	cpdef initialize_HQ(self, NQ=100, E0=10., XY_table=None, Pweight=None, dt_init=0.):
-		print "Uniform sampling transverse momentum with in circle pt2 < Const"
-		print "Zero longitudinal momentum"
+	cpdef initialize_HQ(self, NQ=1000, df_dpt2dy=None):
 		self.active_HQ.clear()
 		self.active_HQ.resize(NQ)
-		cdef double pt, phipt, r, phir, E, pz, free_time
-		cdef particle Q
+		cdef double x, y, z
+		cdef double pT, phipt, rapidity, mT, pTmax = 70., freetime
+		cdef double p, cospz, sinpz, pmax=50.
+		cdef vector[particle].iterator it
+
+		if self.mode == 'dynamic':
+			print "Initialize for dynamic medium"
+			print "Uniform sampling HQ pT and rapidity"
+			print "0. < pt < 70. [GeV], -1. < y < 1."
+			print "Each heavy quark is weighted by df/dpt^2/dy"
+			if df_dpt2dy==None:
+				print "Notice: user define df/dpt^2/dy spectra not available, use defaule weight"
+				df_dpt2dy = default_df_dpt2dy
+			print "Heavy quark will be free streamed to the starting time of hydro"
+			it = self.active_HQ.begin()
+			while it != self.active_HQ.end():
+				pT = sqrt(rand()*1./RAND_MAX)*pTmax
+				mT = sqrt(pT**2 + self.M**2)
+				phipt = rand()*2.*M_PI/RAND_MAX
+				rapidity = rand()*2./RAND_MAX-1.
+				deref(it).p.resize(4)
+				deref(it).x.resize(4)
+				deref(it).p = [mT*cosh(rapidity), pT*cos(phipt), pT*sin(phipt), mT*sinh(rapidity)]
+				deref(it).t_last = 0.; deref(it).t_last2 = 0.
+				deref(it).Nc = 0.; deref(it).Nc2 = 0.
+				deref(it).weight = df_dpt2dy(pT, y)
 		
-		if XY_table==None and Pweight==None:
-			print "Use default initialization pro"
-
-		cdef vector[particle].iterator it = self.active_HQ.begin()
-		while it != self.active_HQ.end():
-			E = E0
-			p = sqrt(E0**2 - self.M**2)
-			phipt = rand()*2.*M_PI/RAND_MAX
-			cospz = rand()*2./RAND_MAX- 1.
-			sinpz = sqrt(1. - cospz**2)
-			
-			deref(it).p.resize(4)
-			deref(it).x.resize(4)
-			deref(it).p = [E, p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]
-			deref(it).t_last = -rand()*1.0/RAND_MAX; deref(it).t_last2 = -rand()*1.0/RAND_MAX
-			deref(it).Nc = 0.; deref(it).Nc2 = 0.
-			deref(it).weight = 1.
-			if self.mode == 'dynamic':
 				# free streaming to hydro starting time
-				free_time = self.tau0/sqrt(1. - (deref(it).p[3]/E)**2)
-				deref(it).x = [dt_init, rand()*5./RAND_MAX, rand()*5./RAND_MAX, rand()*5./RAND_MAX]
+				free_time = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
+				x, y = 1., 1.
+				z = 0.
+				deref(it).x = [0.0, x, y, z]
 				freestream(deref(it).x, deref(it).p, free_time)
-			if self.mode == 'static':
-				deref(it).x = [dt_init, rand()*5./RAND_MAX, rand()*5./RAND_MAX, rand()*5./RAND_MAX]
-			inc(it)
+				inc(it)
 
-	cpdef reset_HQ(self, E0=10.):
-		cdef vector[particle].iterator it = self.active_HQ.begin()
-		while it != self.active_HQ.end():
-			E = E0
-			p = sqrt(E0**2 - self.M**2)
-			phipt = rand()*2.*M_PI/RAND_MAX
-			cospz = rand()*2./RAND_MAX- 1.
-			sinpz = sqrt(1. - cospz**2)
-			deref(it).p = [E, p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]
-			inc(it)
-
+		if self.mode == 'static':
+			print "Initialize for static medium"
+			print "Uniform sampling HQ momentum"
+			print "0. < |p| < 50. [GeV]"
+			it = self.active_HQ.begin()
+			while it != self.active_HQ.end():
+				p = pow(rand()*1./RAND_MAX, 1./3.)*pmax
+				phipt = rand()*2.*M_PI/RAND_MAX
+				cospz = 0.999999*(rand()*2./RAND_MAX-1.)
+				sinpz = sqrt(1.-cospz**2)
+				deref(it).p.resize(4)
+				deref(it).x.resize(4)
+				deref(it).p = [sqrt(p**2+self.M**2), p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]
+				deref(it).t_last = 0.; deref(it).t_last2 = 0.
+				deref(it).Nc = 0.; deref(it).Nc2 = 0.
+				deref(it).weight = 1.0
+				x = rand()*10./RAND_MAX - 5.
+				y = rand()*10./RAND_MAX - 5.
+				z = rand()*10./RAND_MAX - 5.
+				deref(it).x = [0.1, x, y, z]
+				inc(it)	
+	
 	cpdef perform_hydro_step(self, StaticPropertyDictionary=None):
 		status = True
 		if self.mode == 'dynamic':
 			status = self.hydro_reader.load_next()
 		if self.mode == 'static':
+			if StaticPropertyDictionary==None:
+				raise ValueError("static meidum property not defined")
 			status = self.hydro_reader.load_next(StaticPropertyDictionary=StaticPropertyDictionary)
 		self.tau += self.dtau
 		cdef double t, x, y, z, tauQ2
-		cdef vector[particle].iterator it = self.active_HQ.begin()
-		cdef int i=0
-		while it != self.active_HQ.end():
-			if self.mode == 'static':
+		cdef vector[particle].iterator it
+		if self.mode == 'static':
+			it = self.active_HQ.begin()
+			while it != self.active_HQ.end():
 				while deref(it).x[0] <= self.tau:
 					self.perform_HQ_step(deref(it))
-			if self.mode == 'dynamic':
+				inc(it)
+		if self.mode == 'dynamic':
+			it = self.active_HQ.begin()
+			while it != self.active_HQ.end():
 				t, x, y, z = deref(it).x
 				tauQ = sqrt(t**2 - z**2)
 				while tauQ <= self.tau:
 					self.perform_HQ_step(deref(it))
 					t, x, y, z = deref(it).x
 					tauQ = sqrt(t**2 - z**2)
-			inc(it)
+				inc(it)
 		return status
 
 	cpdef perform_HQ_step(self, particle & it):
@@ -147,15 +161,17 @@ cdef class event:
 		t_elapse_lab2 = (t - it.t_last2)/(it.Nc2 + 1.)
 		
 		tauQ = sqrt(t**2 - z**2)
-		T, vx, vy, vz = self.hydro_reader.interpF(tauQ, [x, y, z, t], ['Temp', 'Vx', 'Vy', 'Vz'])	
+		T, vx, vy, vz	\
+		= self.hydro_reader.interpF(tauQ, [x, y, z, t], 
+					['Temp', 'Vx', 'Vy', 'Vz'])
+		cdef double v2 = vx**2 + vy**2 + vz**2
+		if v2 > 0.99999:
+			vx /= v2*1.0001; vy /= v2*1.0001; vz /= v2*1.0001
+
 		# Note the change of units from GeV-1 (fm/c) to fm/c (GeV-1)
 		t_elapse_lab /= GeVm1_to_fmc
 		t_elapse_lab2 /= GeVm1_to_fmc
-		cdef double v2 = vx**2 + vy**2 + vz**2
-		if v2 > 0.99999:
-			vx /= v2*1.0001
-			vy /= v2*1.0001
-			vz /= v2*1.0001
+
 		channel, dt, pnew= self.update_HQ(it.p, [vx, vy, vz], T, t_elapse_lab, t_elapse_lab2)		
 		dt *= GeVm1_to_fmc
 		if channel < 0:
@@ -175,7 +191,7 @@ cdef class event:
 
 	cpdef update_HQ(self, vector[double] & p1_lab, vector[double] & v3cell, double & Temp, double & mean_dt23_lab, double & mean_dt32_lab):
 		# Define local variables
-		cdef double s, L1, L2, Lk, x2, xk, a1=0.6, a2=0.7
+		cdef double s, L1, L2, Lk, x2, xk, a1=0.6, a2=0.6
 		cdef double dt_lab, dt_cell
 		cdef int channel
 		cdef vector[double] p1_cell, p1_cell_Z, p1_com, \
@@ -255,6 +271,16 @@ cdef class event:
 			inc(it)
 		return np.array(datap), np.array(datax)
 
+	cpdef reset_HQ_energy(self, E0=10.):
+		cdef vector[particle].iterator it = self.active_HQ.begin()
+		cdef double pabs_new, pabs_old, px, py, pz
+		while it != self.active_HQ.end():
+			ratio = sqrt( (E0**2 - self.M**2)/(deref(it).p[0]**2 - self.M**2) )
+			px = deref(it).p[1]*ratio
+			py = deref(it).p[2]*ratio 
+			pz = deref(it).p[3]*ratio 
+			deref(it).p = [E0, px, py, pz]
+			inc(it)
 
 
 

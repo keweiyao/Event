@@ -4,6 +4,8 @@ build/
 *.h5
 cython/*.c
 cython/*.cpp
-figs/
+fig*/
+plot*/
 table*/
-Ds/
+hydro*/
+
