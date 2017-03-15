@@ -34,6 +34,8 @@ std::vector<double> rotate_ByEuler(std::vector<double> const& A, double & alpha,
 std::vector<double> rotate_back_from_D(std::vector<double> const& A, double & Dx, double & Dy, double & Dz){
 	double Dperp = std::sqrt(Dx*Dx + Dy*Dy);
 	double D = std::sqrt(Dperp*Dperp + Dz*Dz);
+	if (Dperp/D < 1e-10)
+		return A;
 	double c2 = Dz/D, s2 = Dperp/D;
 	double c3 = Dx/Dperp, s3 = Dy/Dperp;
 	size_t offset = 0;

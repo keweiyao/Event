@@ -43,9 +43,10 @@ void go_to_CoM(std::vector<double> const& Pcom,
 struct particle{
 	std::vector<double> p;
 	std::vector<double> x;
-	float t_last, t_last2;
-	float Nc, Nc2;
-	float weight;
+	double t_last,t_last2;
+	int Nc, Nc2;
+	int count22, count23, count32;
+	double weight;
 };
 
 #endif
