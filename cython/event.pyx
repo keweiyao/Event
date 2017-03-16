@@ -77,7 +77,7 @@ cdef class event:
         cdef double dtHQ
         cdef double deltat_lrf
 
-        def __cinit__(self, mode="dynamic", transport="LBT", hydrofile=None, static_dt=0.5, mass=1.3, elastic=True, inelastic=False, detailed_balance=False, table_folder='./tables'):
+        def __cinit__(self, mode="dynamic", transport="LBT", hydrofile=None, static_dt=0.5, mass=1.3, elastic=True, inelastic=False, detailed_balance=False, EinR=False, table_folder='./tables'):
                 self.mode = mode
                 self.transport = transport
                 self.M = mass
@@ -90,7 +90,7 @@ cdef class event:
                 if transport == "LBT":
                         self.hqsample = HqEvo.HqEvo(mass=mass, elastic=elastic, inelastic=inelastic, detailed_balance=detailed_balance, table_folder=table_folder)
                 elif transport == "LGV":
-                        self.hqsample = HqLGV.HqLGV(mass=mass, elastic=elastic, EinR=False, deltat_lrf=self.deltat_lrf, table_folder=table_folder) 
+                        self.hqsample = HqLGV.HqLGV(mass=mass, elastic=elastic, EinR=EinR, deltat_lrf=self.deltat_lrf, table_folder=table_folder) 
         def sys_time(self):
                 return self.tau
 
