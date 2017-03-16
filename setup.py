@@ -11,11 +11,11 @@ extensions = [
 		filelist1,
 		language="c++",
 		extra_compile_args=["-std=c++11"],
-		include_path = [numpy.get_include()],
 		libraries=["m"])
 ]
 
 setup(
-    ext_modules=cythonize(extensions)
+    ext_modules=cythonize(extensions),
+    include_dirs=[numpy.get_include()]
         )
 
