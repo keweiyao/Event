@@ -258,7 +258,6 @@ cdef class event:
                 self.channel = 10  #? need to change this, reserve a spectial number for Langevin transport
                 self.dtHQ = dt_lab
                 self.pnew = p1_new
-                
                 return True
 
 
