@@ -159,7 +159,7 @@ cdef class event:
 				sinpz = sqrt(1.-cospz**2)
 				deref(it).p.resize(4)
 				deref(it).x.resize(4)
-				deref(it).p = [sqrt(p**2+self.M**2), p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]		   
+				deref(it).p = [sqrt(p**2+self.M**2), p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]			
 				deref(it).t_last = 0.0; deref(it).t_last2 = 0.0
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
@@ -227,7 +227,7 @@ cdef class event:
 			t_elapse_lab = (t - deref(it).t_last)/(deref(it).Nc + 1.) / GeVm1_to_fmc	# convert to GeV-1
 			t_elapse_lab2 = (t - deref(it).t_last2)/(deref(it).Nc2 + 1.) / GeVm1_to_fmc # convert to GeV-1
 			channel, dtHQ, pnew = self.update_HQ_LBT(deref(it).p, vcell, T, t_elapse_lab, t_elapse_lab2)			  
-			self.dtHQ *= GeVm1_to_fmc   # convert back to fm/c 
+			dtHQ *= GeVm1_to_fmc   # convert back to fm/c 
 			if self.channel == 0 or self.channel == 1:
 				deref(it).Nc = deref(it).Nc + 1
 				deref(it).Nc2 = deref(it).Nc2 + 1
@@ -291,11 +291,10 @@ cdef class event:
 		
 		# Boost evolution time back to lab frame
 		cdef double dtHQ = p1_lab[0]/p1_cell[0]*dt_cell
-
+		
 		# If not scattered, return channel=-1, evolution time in Lab frame and origin al p1(lab)
 		if channel < 0:
 			pnew = p1_lab
-			return channel, dtHQ, pnew
 		else:
 			# Sample initial state and return initial state particle four vectors 
 			# Imagine rotate p1_cell to align with z-direction, construct p2_cell_align, ...				
@@ -336,9 +335,9 @@ cdef class event:
 			p1_cell_new = rotate_back_from_D(p1_cell_Z_new, p1_cell[1], p1_cell[2], p1_cell[3])
 			# boost back to lab frame
 			pnew = boost4_By3(p1_cell_new, [-v3cell[0], -v3cell[1], -v3cell[2]])
-			# return updated momentum of heavy quark
+		# return updated momentum of heavy quark
 			
-			return channel, dtHQ, pnew
+		return channel, dtHQ, pnew
 
 	cpdef HQ_hist(self):
 		cdef vector[particle].iterator it = self.active_HQ.begin()

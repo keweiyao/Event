@@ -18,7 +18,7 @@ box_info = {'Temp'  : 0.3,
 			'Vy'	: 0.0, 
 			'Vz'	: 0.0   }
 static_config = {	'type'	  : 'static',	
-					 'static_dt' : 0.5  }
+					 'static_dt' : 1.  }
 """		
 hydro_history_filepath = sys.argv[1]
 dynamic_config = {  'type'	  : 'dynamic', 
@@ -27,8 +27,8 @@ dynamic_config = {  'type'	  : 'dynamic',
 # Physics option
 LBT_config = {  'physics'   : 'LBT',
 				'2->2'	  : True,
-				'2->3'	  : True,
-				'3->2'	  : True,
+				'2->3'	  : False,
+				'3->2'	  : False,
 				'Nf'		: 3,
 				'mass'	  : 1.3 }  
 
@@ -42,7 +42,7 @@ LGV_config = {  'physics'   : 'LGV',
 # Initialization option
 box_init = {	'type'  : 'box',
 				'L'	 : 10.,
-				'pmax'  : 50.   }
+				'pmax'  : 10.   }
 """
 TR = np.loadtxt(sys.argv[2]).T ## p=0.
 TAB = TR**2
@@ -69,7 +69,7 @@ f.create_dataset('Init_PT', data=Init_pT)
 for i in range(50):
 	print("t = %1.2f [fm/c]"%e1.sys_time() )
 	status = e1.perform_hydro_step(StaticPropertyDictionary=box_info)
-	if i%10 == 0:
+	if i%1 == 0:
 		dsp, dsx = e1.HQ_hist()
 		f.create_dataset('p-%d'%i, data=dsp)
 		f.create_dataset('x-%d'%i, data=dsx)
