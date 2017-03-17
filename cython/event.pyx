@@ -1,3 +1,4 @@
+# cython: c_string_type=str, c_string_encoding=ascii
 from libcpp cimport bool
 from libcpp.vector cimport vector
 from libc.stdlib cimport rand, RAND_MAX
@@ -243,14 +244,11 @@ cdef class event:
 		else:
 			raise ValueError("Transport mode not recongized.")
 		
-		if channel >= 0:
-			print channel,
 		freestream(it, dtHQ)
 		deref(it).p = pnew
 
 	cdef update_HQ_LGV(self, vector[double] p1_lab, vector[double] v3cell, double Temp) :
 		cdef vector[double] p1_cell, p1_cell_Z_new, p1_cell_new 
-		cdef double dt_cell
 		#Boost from p1(lab) to p1(cell)
 		p1_cell = boost4_By3(p1_lab, v3cell)
 		# there is no need to use p1_cell_Z, since we only need energy to do the Langevin transportation, and returns in Z
@@ -258,7 +256,7 @@ cdef class event:
 		p1_cell_new = rotate_back_from_D(p1_cell_Z_new, p1_cell[1], p1_cell[2], p1_cell[3])
 		cdef vector[double] pnew = boost4_By3(p1_cell_new, [-v3cell[0], -v3cell[1], -v3cell[2]])
 
-		dt_cell = self.deltat_lrf
+		cdef double dt_cell = self.deltat_lrf
 		cdef double dtHQ = p1_lab[0]/p1_cell[0] * dt_cell  #? what is this for??
 
 		cdef int channel = 10  #? need to change this, reserve a spectial number for Langevin transport

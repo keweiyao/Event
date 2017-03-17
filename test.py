@@ -57,7 +57,7 @@ realistic_init =  { 'type'		  : 'A+B',
 """
 				
 e1 = event.event(   medium_flags=static_config, 
-					physics_flags=LBT_config   )
+					physics_flags=LGV_config   )
 
 f = h5py.File("particledata.hdf5", 'w')
 
@@ -65,7 +65,7 @@ e1.initialize_HQ(   NQ=10000,
 					init_flags=box_init   )
 
 # Run Model  
-for i in range(400):
+for i in range(10):
 	print("t = %1.2f [fm/c]"%e1.sys_time() )
 	status = e1.perform_hydro_step(StaticPropertyDictionary=box_info)
 	if i%10 == 0:
