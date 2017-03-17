@@ -19,3 +19,7 @@ setup(
     include_dirs=[numpy.get_include()]
         )
 
+"""
+    ext_modules=cythonize(extensions,
+			compiler_directives={ 'c_string_type':str, 'c_string_encoding':ascii})
+"""

@@ -1,47 +1,73 @@
 import numpy as np
-#import matplotlib.pyplot as plt
 import sys
 import event
 import h5py
 from scipy.interpolate import interp1d
 
-# define an event:
-# Default arguments:
-# mode="dynamic", hydrofile=None, mass=1.3, elastic=True, inelastic=False, table_folder='./tables'
-# 1. mode = dynamic / static
-# 2. hydrofile = user input filename
-# 3. mass = M_c, M_b, ...
-# 4. elastic = True / False
-# 5. inelastic = True / False
-# 6. table = where to put the tabulated cross-secitons and scattering rates.
-
-# Static Meidum
-# A static medium dictionary
-#medium = {'Temp': 0.3, 'Vx'	: 0.0, 'Vy'	: 0.0, 'Vz'	: 0.0}
-#e1 = event.event(mode='static', static_dt=1., elastic=True, inelastic=True, detailed_balance=True, mass=1.3)
-#e1 = event.event(mode='static', static_dt=1., elastic=True, inelastic=False, detailed_balance=False, mass=1.3)
-
-# Dynamic Meidum
-e1 = event.event(mode='dynamic', hydrofile=sys.argv[2], inelastic=True, detailed_balance=True, mass=1.3)
-#e1 = event.event(mode='dynamic', hydrofile=sys.argv[2], inelastic=False, detailed_balance=False, mass=1.3)
-f = h5py.File("particledata.hdf5", 'w')
-
-# Initialize HQ pT weight and xy-distribution
-
-TR = np.loadtxt(sys.argv[1]).T ## p=0.
-Taa = TR**2
-
+# FONLL pT spectra
+"""
 pt, dsigma = np.loadtxt(sys.argv[3]).T
 dfdpt2 = interp1d(pt, dsigma)
 def pT_weight(pt, y):
 	return dfdpt2(pt)
+"""
 
-e1.initialize_HQ(NQ=100000, Taa=Taa, dxy=0.1, df_dpt2dy=pT_weight, oversample_power=-1.)
+# Medium option
+box_info = {'Temp'  : 0.3, 
+			'Vx'	: 0.0, 
+			'Vy'	: 0.0, 
+			'Vz'	: 0.0   }
+static_config = {	'type'	  : 'static',	
+					 'static_dt' : 0.5  }
+"""		
+hydro_history_filepath = sys.argv[1]
+dynamic_config = {  'type'	  : 'dynamic', 
+					'hydrofile' : hydro_history_filepath	}
+"""
+# Physics option
+LBT_config = {  'physics'   : 'LBT',
+				'2->2'	  : True,
+				'2->3'	  : True,
+				'3->2'	  : True,
+				'Nf'		: 3,
+				'mass'	  : 1.3 }  
 
-# Run Modgetel  
+LGV_config = {  'physics'   : 'LGV',
+				'dt_lrf'	: 0.01,
+				'elastic'   : True,
+				'Einstein'  : True,
+				'Nf'		: 3,
+				'mass'	  : 1.3 } 
+
+# Initialization option
+box_init = {	'type'  : 'box',
+				'L'	 : 10.,
+				'pmax'  : 50.   }
+"""
+TR = np.loadtxt(sys.argv[2]).T ## p=0.
+TAB = TR**2
+realistic_init =  { 'type'		  : 'A+B',
+					'sample power'  : 1.,
+					'pTmin'		 : 0.1,
+					'pTmax'		 : 70.,
+					'ymin'		  : -1.,
+					'ymax'		  : 1.,
+					'TAB'		   : TAB,
+					'dxy'		   : 0.1   }
+"""
+				
+e1 = event.event(   medium_flags=static_config, 
+					physics_flags=LBT_config   )
+
+f = h5py.File("particledata.hdf5", 'w')
+
+e1.initialize_HQ(   NQ=10000,
+					init_flags=box_init   )
+
+# Run Model  
 for i in range(400):
-	print "t = %1.2f [fm/c]"%e1.sys_time()
-	status = e1.perform_hydro_step()#(StaticPropertyDictionary=medium)
+	print("t = %1.2f [fm/c]"%e1.sys_time() )
+	status = e1.perform_hydro_step(StaticPropertyDictionary=box_info)
 	if i%10 == 0:
 		dsp, dsx, dsw = e1.HQ_hist()
 		f.create_dataset('p-%d'%i, data=dsp)
