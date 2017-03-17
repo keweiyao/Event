@@ -33,7 +33,7 @@ LBT_config = {  'physics'   : 'LBT',
 				'mass'	  : 1.3 }  
 
 LGV_config = {  'physics'   : 'LGV',
-				'dt_lrf'	: 0.01,
+				'dt_lrf'	: 0.02,
 				'elastic'   : True,
 				'Einstein'  : True,
 				'Nf'		: 3,
@@ -57,24 +57,22 @@ realistic_init =  { 'type'		  : 'A+B',
 """
 				
 e1 = event.event(   medium_flags=static_config, 
-					physics_flags=LGV_config   )
-
-f = h5py.File("particledata.hdf5", 'w')
+					physics_flags=LBT_config   )
 
 e1.initialize_HQ(   NQ=10000,
 					init_flags=box_init   )
 
-# Run Model  
-for i in range(10):
+# Run Model
+f = h5py.File("particledata.hdf5", 'w')
+Init_pT = e1.Init_pT()
+f.create_dataset('Init_PT', data=Init_pT)
+for i in range(50):
 	print("t = %1.2f [fm/c]"%e1.sys_time() )
 	status = e1.perform_hydro_step(StaticPropertyDictionary=box_info)
 	if i%10 == 0:
-		dsp, dsx, dsw = e1.HQ_hist()
+		dsp, dsx = e1.HQ_hist()
 		f.create_dataset('p-%d'%i, data=dsp)
 		f.create_dataset('x-%d'%i, data=dsx)
-		f.create_dataset('w-%d'%i, data=dsw)
 	if not status:
 		break
 f.close()
-
-

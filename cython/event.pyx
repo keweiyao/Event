@@ -33,6 +33,7 @@ cdef extern from "../src/utility.h":
 		int Nc, Nc2
 		int count22, count23, count32
 		double weight
+		double initial_pT
 
 #-----------Production vertex sampler class-------------------------
 cdef class XY_sampler:
@@ -136,7 +137,7 @@ cdef class event:
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
 				deref(it).weight = 1.0#pT**(2. - 1./oversample_power)*df_dpt2dy(pT, y)
-
+				deref(it).initial_pT = pT
 				# free streaming to hydro starting time
 				free_time = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
 				x, y = HQ_xy_sampler.sample_xy()
@@ -159,14 +160,14 @@ cdef class event:
 				deref(it).p.resize(4)
 				deref(it).x.resize(4)
 				deref(it).p = [sqrt(p**2+self.M**2), p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]		   
-				deref(it).p = [10., 0., 0., sqrt(100.-1.3**2)]
 				deref(it).t_last = 0.0; deref(it).t_last2 = 0.0
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
 				deref(it).weight = 1.0
-				x = rand()*10./RAND_MAX - 5.
-				y = rand()*10./RAND_MAX - 5.
-				z = rand()*10./RAND_MAX - 5.
+				deref(it).initial_pT = p*sinpz
+				x = rand()*L*2./RAND_MAX - L
+				y = rand()*L*2./RAND_MAX - L
+				z = rand()*L*2./RAND_MAX - L
 				deref(it).x = [0.0, x, y, z]
 				inc(it) 
 
@@ -342,16 +343,22 @@ cdef class event:
 	cpdef HQ_hist(self):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		cdef vector[ vector[double] ] p, x
-		cdef vector[double] weight
 		p.clear()
 		x.clear()
-		weight.clear()
 		while it != self.active_HQ.end():
 			p.push_back(deref(it).p)
 			x.push_back(deref(it).x)
-			weight.push_back(deref(it).weight)
 			inc(it)
-		return np.array(p), np.array(x), np.array(weight)
+		return np.array(p), np.array(x)
+		
+	cpdef Init_pT(self):
+		cdef vector[particle].iterator it = self.active_HQ.begin()
+		cdef vector[double] Init_pT
+		Init_pT.clear()
+		while it != self.active_HQ.end():
+			Init_pT.push_back(deref(it).initial_pT)
+			inc(it)
+		return np.array(Init_pT)
 
 	cpdef reset_HQ_energy(self, E0=10.):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
