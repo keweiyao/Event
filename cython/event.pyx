@@ -18,8 +18,8 @@ import HqLGV
 from event cimport *
 
 cdef double GeVm1_to_fmc = 0.197
-cdef double little_below_one = 1. - 1e-7
-cdef double little_above_one = 1. + 1e-7
+cdef double little_below_one = 1. - 1e-3
+cdef double little_above_one = 1. + 1e-3
 
 cdef double default_df_dpt2dy(double pT, double y):
 	return 1.0/(1.0+pT**4)*1.0/cosh(y)
@@ -129,14 +129,14 @@ cdef class event:
 						pT = (rand()*1./RAND_MAX)**alpha*(pTmin)
 				mT = sqrt(pT**2 + self.M**2)
 				phipt = rand()*2.*M_PI/RAND_MAX
-				rapidity = rand()*2./RAND_MAX-1.
+				rapidity = rand()*(ymax-ymin)/RAND_MAX + ymin
 				deref(it).p.resize(4)
 				deref(it).x.resize(4)
 				deref(it).p = [mT*cosh(rapidity), pT*cos(phipt), pT*sin(phipt), mT*sinh(rapidity)]
 				deref(it).t_last = 0.; deref(it).t_last2 = 0.
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
-				deref(it).weight = 1.0#pT**(2. - 1./oversample_power)*df_dpt2dy(pT, y)
+				deref(it).weight = 1.0 #pT**(2. - 1./oversample_power)*df_dpt2dy(pT, y)
 				deref(it).initial_pT = pT
 				# free streaming to hydro starting time
 				free_time = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
@@ -218,10 +218,14 @@ cdef class event:
 		T, vcell[0], vcell[1], vcell[2] = self.hydro_reader.interpF(tauQ, [x, y, z, t], ['Temp', 'Vx', 'Vy', 'Vz'])
 		vabs2 = vcell[0]**2 + vcell[1]**2 + vcell[2]**2
 		if vabs2 >= little_below_one:
-			vabs = sqrt(vabs2)*little_above_one 
+			vabs = sqrt(vabs2)*little_above_one
 			vcell[0] /= vabs
 			vcell[1] /= vabs
 			vcell[2] /= vabs
+
+		if	T < 0.154:
+			freestream(it, 0.1)
+			return 
 		
 		if self.transport == 'LBT':
 			t_elapse_lab = (t - deref(it).t_last)/(deref(it).Nc + 1.) / GeVm1_to_fmc	# convert to GeV-1
@@ -231,22 +235,25 @@ cdef class event:
 			if self.channel == 0 or self.channel == 1:
 				deref(it).Nc = deref(it).Nc + 1
 				deref(it).Nc2 = deref(it).Nc2 + 1
-			if self.channel == 2 or self.channel == 3:
+			elif self.channel == 2 or self.channel == 3:
 				deref(it).Nc = 0
 				deref(it).Nc2 = deref(it).Nc2 + 1
 				deref(it).t_last = t + self.dtHQ
-			if self.channel == 4 or self.channel == 5:
+			elif self.channel == 4 or self.channel == 5:
 				deref(it).Nc2 = 0
 				deref(it).Nc = deref(it).Nc + 1
 				deref(it).t_last2 = t + self.dtHQ
+			else:
+				pass
+			freestream(it, dtHQ)
+			deref(it).p = pnew
 		elif self.transport == 'LGV':
 			channel, dtHQ, pnew = self.update_HQ_LGV(deref(it).p, vcell, T)
+			freestream(it, dtHQ)
+			deref(it).p = pnew
 			# for Langevin transport, the time dtHQ is already in fm/c unit 
 		else:
 			raise ValueError("Transport mode not recongized.")
-		
-		freestream(it, dtHQ)
-		deref(it).p = pnew
 
 	cdef update_HQ_LGV(self, vector[double] p1_lab, vector[double] v3cell, double Temp) :
 		cdef vector[double] p1_cell, p1_cell_Z_new, p1_cell_new 
@@ -287,7 +294,7 @@ cdef class event:
 		dx32_cell = [pi/p1_lab[0]*mean_dt32_lab for pi in p1_cell]
 
 		# Sample channel in cell, return channl index and evolution time seen from cell
-		channel, dt_cell = self.hqsample.sample_channel(p1_cell[0], Temp, 0.154, dx23_cell[0], dx32_cell[0])
+		channel, dt_cell = self.hqsample.sample_channel(p1_cell[0], Temp, dx23_cell[0], dx32_cell[0])
 		
 		# Boost evolution time back to lab frame
 		cdef double dtHQ = p1_lab[0]/p1_cell[0]*dt_cell
