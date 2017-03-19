@@ -54,7 +54,7 @@ cdef class XY_sampler:
 		cdef double r = np.random.rand()
 		cdef int index = np.searchsorted(self.IntTaa, r)
 		cdef double nx = np.floor((index-1.)/self.Ny)
-		cdef double ny = index - 1 - nx*self.Ny		
+		cdef double ny = index - 1 - nx*self.Ny         
 		nx += np.random.rand()
 		ny += np.random.rand()
 		return (nx - self.Nx/2.)*self.dxy, (ny - self.Ny/2.)*self.dxy
@@ -65,6 +65,15 @@ cdef bool freestream(vector[particle].iterator it, double dt):
 	deref(it).x[2] = deref(it).x[2] + deref(it).p[2]/deref(it).p[0]*dt
 	deref(it).x[3] = deref(it).x[3] + deref(it).p[3]/deref(it).p[0]*dt
 	return True
+
+# Yingru 
+cdef bool freestream_stay(vector[particle].iterator it, double dt):
+	deref(it).x[0] = deref(it).x[0] + dt
+	deref(it).x[1] = deref(it).x[1] 
+	deref(it).x[2] = deref(it).x[2] 
+	deref(it).x[3] = deref(it).x[3] 
+	return True
+
 
 
 cdef class event:
@@ -378,6 +387,7 @@ cdef class event:
 			inc(it)
 	def get_hydro_field(self, key):
 		return self.hydro_reader.get_current_frame(key)
+
 
 
 
