@@ -47,6 +47,7 @@ struct particle{
 	int Nc, Nc2;
 	int count22, count23, count32;
 	double weight;
+	double initial_pT;
 };
 
 #endif

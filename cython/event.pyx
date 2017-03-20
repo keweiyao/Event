@@ -1,8 +1,10 @@
+# cython: c_string_type=str, c_string_encoding=ascii
 from libcpp cimport bool
 from libcpp.vector cimport vector
 from libc.stdlib cimport rand, RAND_MAX
 from libc.math cimport *
 from cython.operator cimport dereference as deref, preincrement as inc
+from cpython.exc cimport PyErr_CheckSignals
 import numpy as np
 import sys
 cimport numpy as np
@@ -11,12 +13,13 @@ sys.path.append('../HQ-Evo/')
 sys.path.append('../Medium-Reader')
 import HqEvo
 import medium
+import HqLGV
 
 from event cimport *
 
 cdef double GeVm1_to_fmc = 0.197
-cdef double little_below_one = 1. - 1e-7
-cdef double little_above_one = 1. + 1e-7
+cdef double little_below_one = 1. - 1e-3
+cdef double little_above_one = 1. + 1e-3
 
 cdef double default_df_dpt2dy(double pT, double y):
 	return 1.0/(1.0+pT**4)*1.0/cosh(y)
@@ -30,6 +33,7 @@ cdef extern from "../src/utility.h":
 		int Nc, Nc2
 		int count22, count23, count32
 		double weight
+		double initial_pT
 
 #-----------Production vertex sampler class-------------------------
 cdef class XY_sampler:
@@ -50,12 +54,11 @@ cdef class XY_sampler:
 		cdef double r = np.random.rand()
 		cdef int index = np.searchsorted(self.IntTaa, r)
 		cdef double nx = np.floor((index-1.)/self.Ny)
-		cdef double ny = index - 1 - nx*self.Ny
+		cdef double ny = index - 1 - nx*self.Ny         
 		nx += np.random.rand()
 		ny += np.random.rand()
 		return (nx - self.Nx/2.)*self.dxy, (ny - self.Ny/2.)*self.dxy
 #-----------Event Class---------------------------------------------
-
 cdef bool freestream(vector[particle].iterator it, double dt):
 	deref(it).x[0] = deref(it).x[0] + dt
 	deref(it).x[1] = deref(it).x[1] + deref(it).p[1]/deref(it).p[0]*dt
@@ -63,70 +66,87 @@ cdef bool freestream(vector[particle].iterator it, double dt):
 	deref(it).x[3] = deref(it).x[3] + deref(it).p[3]/deref(it).p[0]*dt
 	return True
 
+# Yingru 
+cdef bool freestream_stay(vector[particle].iterator it, double dt):
+	deref(it).x[0] = deref(it).x[0] + dt
+	deref(it).x[1] = deref(it).x[1] 
+	deref(it).x[2] = deref(it).x[2] 
+	deref(it).x[3] = deref(it).x[3] 
+	return True
+
+
 
 cdef class event:
-	cdef object hydro_reader, hqsample, mode, C
+	cdef object hydro_reader, hqsample
+	cdef str mode, transport
 	cdef double M
 	cdef vector[particle] active_HQ
 	cdef vector[particle] frzout_HQ
 	cdef double tau0, dtau, tau
 	cdef int channel
-	cdef vector[double] pnew
 	cdef double dtHQ
-	
-	def __cinit__(self, mode="dynamic", hydrofile=None, static_dt=0.5, mass=1.3, elastic=True, inelastic=False, detailed_balance=False, table_folder='./tables'):
-		self.mode = mode
-		self.M = mass
-		self.hydro_reader = medium.Medium(mode=mode, hydrofilename=hydrofile, static_dt=static_dt)
-		self.hqsample = HqEvo.HqEvo(mass=mass, elastic=elastic, inelastic=inelastic, detailed_balance=detailed_balance, table_folder=table_folder)
+	cdef double deltat_lrf
+
+	def __cinit__(self, medium_flags, physics_flags, table_folder='./tables'):
+		self.mode = medium_flags['type']
+		self.transport = physics_flags['physics']
+		self.M = physics_flags['mass']
+		self.hydro_reader = medium.Medium(medium_flags=medium_flags)
 		self.tau0 = self.hydro_reader.init_tau()
 		self.dtau = self.hydro_reader.dtau()
 		self.tau = self.tau0
+		
 
-	def sys_time(self):
+		if self.transport == "LBT":
+			self.hqsample = HqEvo.HqEvo(options=physics_flags,		  
+										table_folder=table_folder, refresh_table=False)
+		elif self.transport == "LGV":
+			self.deltat_lrf = physics_flags['dt_lrf']
+			self.hqsample = HqLGV.HqLGV(options=physics_flags,
+										table_folder=table_folder, refresh_table=False) 
+	cpdef sys_time(self) :
 		return self.tau
 
-	cpdef initialize_HQ(self, NQ=1000, df_dpt2dy=None, Taa=None, dxy=0.1, oversample_power=1.):
+	cpdef initialize_HQ(self, NQ, init_flags):
 		self.active_HQ.clear()
 		self.active_HQ.resize(NQ)
 		cdef double x, y, z
-		cdef double pT, phipt, rapidity, mT, pTmax = 70., pTmin=0.1, freetime
-		cdef double p, cospz, sinpz, pmax=50.
+		# for A+B:
+		cdef double pT, phipt, rapidity, mT, freetime
+		cdef double ymin, ymax, pTmax, pTmin, alpha
+		# for box:
+		cdef double p, cospz, sinpz
+		cdef double pmax, L
 		cdef vector[particle].iterator it
 
-		if self.mode == 'dynamic':	
+		if init_flags['type'] == 'A+B':	  
 			print "Initialize for dynamic medium"
-			if Taa == None:
-				raise ValueError("Need Taa to sample x-y postion of heavy quark in dynamic mode")
-			else:
-				print "sample x-y position accoring to Taa"
-			HQ_xy_sampler = XY_sampler(Taa, dxy)
-			print "Uniform and independent sampling HQ df/dpT and df/dy"
-			print "0.1 < pt < 70. [GeV], -1. < y < 1."
-			print "Each heavy quark is then weighted by pt*df/dpt^2/dy"
-			if df_dpt2dy==None:
-				print "Notice: user define df/dpt^2/dy spectra not available, use defaule weight"
-				df_dpt2dy = default_df_dpt2dy
+			HQ_xy_sampler = XY_sampler(init_flags['TAB'], init_flags['dxy'])
+			pTmax = init_flags['pTmax']
+			pTmin = init_flags['pTmin']
+			ymax = init_flags['ymax']
+			ymin = init_flags['ymin']
+			alpha = init_flags['sample power']
 			print "Heavy quark will be free streamed to the starting time of hydro"
 			it = self.active_HQ.begin()
 			while it != self.active_HQ.end():
 				pT = 0.
 				while pT < pTmin or pT > pTmax:
-					if oversample_power > 0.:
-						pT = (rand()*1./RAND_MAX)**oversample_power*(pTmax)
-					if oversample_power < 0.:
-						pT = (rand()*1./RAND_MAX)**oversample_power*(pTmin)
+					if alpha > 0.:
+						pT = (rand()*1./RAND_MAX)**alpha*(pTmax)
+					if alpha < 0.:
+						pT = (rand()*1./RAND_MAX)**alpha*(pTmin)
 				mT = sqrt(pT**2 + self.M**2)
 				phipt = rand()*2.*M_PI/RAND_MAX
-				rapidity = rand()*2./RAND_MAX-1.
+				rapidity = rand()*(ymax-ymin)/RAND_MAX + ymin
 				deref(it).p.resize(4)
 				deref(it).x.resize(4)
 				deref(it).p = [mT*cosh(rapidity), pT*cos(phipt), pT*sin(phipt), mT*sinh(rapidity)]
 				deref(it).t_last = 0.; deref(it).t_last2 = 0.
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
-				deref(it).weight = pT**(2. - 1./oversample_power)*df_dpt2dy(pT, y)
-
+				deref(it).weight = 1.0 #pT**(2. - 1./oversample_power)*df_dpt2dy(pT, y)
+				deref(it).initial_pT = pT
 				# free streaming to hydro starting time
 				free_time = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
 				x, y = HQ_xy_sampler.sample_xy()
@@ -136,31 +156,32 @@ cdef class event:
 				freestream(it, free_time)
 				inc(it)
 
-		if self.mode == 'static':
-			print "Initialize for static medium"
-			print "Uniform sampling HQ momentum"
-			print "0. < |p| < 50. [GeV]"
+		if init_flags['type'] == 'box':
+			print "Initialize for box simulation"
+			pmax = init_flags['pmax']
+			L = init_flags['L']
 			it = self.active_HQ.begin()
-			while it != self.active_HQ.end():			
+			while it != self.active_HQ.end():					   
 				p = pow(rand()*1./RAND_MAX, 1./3.)*pmax
 				phipt = rand()*2.*M_PI/RAND_MAX
 				cospz = little_below_one*(rand()*2./RAND_MAX-1.)
 				sinpz = sqrt(1.-cospz**2)
 				deref(it).p.resize(4)
 				deref(it).x.resize(4)
-				deref(it).p = [sqrt(p**2+self.M**2), p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]		
-				deref(it).p = [10., 0., 0., sqrt(100.-1.3**2)]
+				deref(it).p = [sqrt(p**2+self.M**2), p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]			
 				deref(it).t_last = 0.0; deref(it).t_last2 = 0.0
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
 				deref(it).weight = 1.0
-				x = rand()*10./RAND_MAX - 5.
-				y = rand()*10./RAND_MAX - 5.
-				z = rand()*10./RAND_MAX - 5.
+				deref(it).initial_pT = p*sinpz
+				x = rand()*L*2./RAND_MAX - L
+				y = rand()*L*2./RAND_MAX - L
+				z = rand()*L*2./RAND_MAX - L
 				deref(it).x = [0.0, x, y, z]
-				inc(it)	
-	
-	cpdef bool perform_hydro_step(self, StaticPropertyDictionary=None):
+				inc(it) 
+
+	cpdef bool perform_hydro_step(self, StaticPropertyDictionary=None) :
+		PyErr_CheckSignals()
 		cdef bool status = True
 		if self.mode == 'dynamic':
 			status = self.hydro_reader.load_next()
@@ -181,7 +202,6 @@ cdef class event:
 		elif self.mode == 'dynamic':
 			it = self.active_HQ.begin()
 			while it != self.active_HQ.end():
-				count = 0
 				t, x, y, z = deref(it).x
 				tauQ = sqrt(t**2 - z**2)
 				while tauQ <= self.tau:
@@ -193,57 +213,87 @@ cdef class event:
 			raise ValueError("Mode not implemented")
 		return status
 
-	cdef bool perform_HQ_step(self, vector[particle].iterator it):
-		cdef double t, x, y, z, t_elapse_lab, t_elapse_lab2, tauQ
-		cdef double T, vx, vy, vz
+	cdef perform_HQ_step(self, vector[particle].iterator it): 
+		PyErr_CheckSignals()
+		cdef double t, x, y, z, tauQ, T, vabs2, vabs
+		cdef double t_elapse_lab, t_elapse_lab2
+		cdef double dtHQ
+		cdef vector[double] pnew, vcell
+		cdef int channel
+		
 		t, x, y, z = deref(it).x
-		t_elapse_lab = (t - deref(it).t_last)/(deref(it).Nc + 1.)
-		t_elapse_lab2 = (t - deref(it).t_last2)/(deref(it).Nc2 + 1.)
-		
 		tauQ = sqrt(t**2 - z**2)
-		T, vx, vy, vz = self.hydro_reader.interpF(tauQ, [x, y, z, t], ['Temp', 'Vx', 'Vy', 'Vz'])
-		cdef double v2 = vx**2 + vy**2 + vz**2
-		if v2 > little_below_one:
-			vx /= v2*little_above_one; vy /= v2*little_above_one; vz /= v2*little_above_one
+		vcell.resize(3)
+		T, vcell[0], vcell[1], vcell[2] = self.hydro_reader.interpF(tauQ, [x, y, z, t], ['Temp', 'Vx', 'Vy', 'Vz'])
+		vabs2 = vcell[0]**2 + vcell[1]**2 + vcell[2]**2
+		if vabs2 >= little_below_one:
+			vabs = sqrt(vabs2)*little_above_one
+			vcell[0] /= vabs
+			vcell[1] /= vabs
+			vcell[2] /= vabs
 
-		# Note the change of units from GeV-1 (fm/c) to fm/c (GeV-1)
-		t_elapse_lab /= GeVm1_to_fmc
-		t_elapse_lab2 /= GeVm1_to_fmc
-		cdef vector[double] vcell = [vx, vy, vz]
-		self.update_HQ(deref(it).p, vcell, T, t_elapse_lab, t_elapse_lab2)		
-		self.dtHQ *= GeVm1_to_fmc
+		if	T < 0.154:
+			freestream(it, 0.1)
+			return 
 		
-		if self.channel == 0 or self.channel == 1:
-			deref(it).Nc = deref(it).Nc + 1
-			deref(it).Nc2 = deref(it).Nc2 + 1
-		if self.channel == 2 or self.channel == 3:
-			deref(it).Nc = 0
-			deref(it).Nc2 = deref(it).Nc2 + 1
-			deref(it).t_last = t + self.dtHQ
-		if self.channel == 4 or self.channel == 5:
-			deref(it).Nc2 = 0
-			deref(it).Nc = deref(it).Nc + 1
-			deref(it).t_last2 = t + self.dtHQ
-		freestream(it, self.dtHQ)
-		deref(it).p = self.pnew
-		return True
+		if self.transport == 'LBT':
+			t_elapse_lab = (t - deref(it).t_last)/(deref(it).Nc + 1.) / GeVm1_to_fmc	# convert to GeV-1
+			t_elapse_lab2 = (t - deref(it).t_last2)/(deref(it).Nc2 + 1.) / GeVm1_to_fmc # convert to GeV-1
+			channel, dtHQ, pnew = self.update_HQ_LBT(deref(it).p, vcell, T, t_elapse_lab, t_elapse_lab2)			  
+			dtHQ *= GeVm1_to_fmc   # convert back to fm/c 
+			if self.channel == 0 or self.channel == 1:
+				deref(it).Nc = deref(it).Nc + 1
+				deref(it).Nc2 = deref(it).Nc2 + 1
+			elif self.channel == 2 or self.channel == 3:
+				deref(it).Nc = 0
+				deref(it).Nc2 = deref(it).Nc2 + 1
+				deref(it).t_last = t + self.dtHQ
+			elif self.channel == 4 or self.channel == 5:
+				deref(it).Nc2 = 0
+				deref(it).Nc = deref(it).Nc + 1
+				deref(it).t_last2 = t + self.dtHQ
+			else:
+				pass
+			freestream(it, dtHQ)
+			deref(it).p = pnew
+		elif self.transport == 'LGV':
+			channel, dtHQ, pnew = self.update_HQ_LGV(deref(it).p, vcell, T)
+			freestream(it, dtHQ)
+			deref(it).p = pnew
+			# for Langevin transport, the time dtHQ is already in fm/c unit 
+		else:
+			raise ValueError("Transport mode not recongized.")
+
+	cdef update_HQ_LGV(self, vector[double] p1_lab, vector[double] v3cell, double Temp) :
+		cdef vector[double] p1_cell, p1_cell_Z_new, p1_cell_new 
+		#Boost from p1(lab) to p1(cell)
+		p1_cell = boost4_By3(p1_lab, v3cell)
+		# there is no need to use p1_cell_Z, since we only need energy to do the Langevin transportation, and returns in Z
+		p1_cell_Z_new = self.hqsample.update_by_Langevin(p1_cell[0], Temp)
+		p1_cell_new = rotate_back_from_D(p1_cell_Z_new, p1_cell[1], p1_cell[2], p1_cell[3])
+		cdef vector[double] pnew = boost4_By3(p1_cell_new, [-v3cell[0], -v3cell[1], -v3cell[2]])
+
+		cdef double dt_cell = self.deltat_lrf
+		cdef double dtHQ = p1_lab[0]/p1_cell[0] * dt_cell  #? what is this for??
+
+		cdef int channel = 10  #? need to change this, reserve a spectial number for Langevin transport
+		return channel, dtHQ, pnew
 
 
-		
-		
-
-	cdef bool update_HQ(self, vector[double] p1_lab, vector[double] v3cell, double Temp, double mean_dt23_lab, double mean_dt32_lab):
+				
+	# this function needs to be cdef so that we can use the reference copy
+	cdef update_HQ_LBT(self, vector[double] p1_lab, vector[double] v3cell, double Temp, double mean_dt23_lab, double mean_dt32_lab) :
 		# Define local variables
 		cdef double s, L1, L2, Lk, x2, xk, a1=0.6, a2=0.6
-		cdef double dt_lab, dt_cell
-		cdef int channel
+		cdef double dt_cell
 		cdef size_t i=0
+		cdef int channel
 		cdef vector[double] p1_cell, p1_cell_Z, p1_com, \
-							p1_com_Z_new, p1_com_new, \
-							p1_cell_Z_new, p1_cell_new,\
-							p1_new,	fs,				\
-							dx23_cell, dx32_cell, dx23_com, \
-							v3com 
+			 p1_com_Z_new, p1_com_new, \
+			 p1_cell_Z_new, p1_cell_new,\
+			 pnew, fs,	   \
+			 dx23_cell, dx32_cell, dx23_com, \
+			 v3com 
 
 		# Boost p1 (lab) to p1 (cell)
 		p1_cell = boost4_By3(p1_lab, v3cell)
@@ -253,20 +303,17 @@ cdef class event:
 		dx32_cell = [pi/p1_lab[0]*mean_dt32_lab for pi in p1_cell]
 
 		# Sample channel in cell, return channl index and evolution time seen from cell
-		channel, dt_cell = self.hqsample.sample_channel(p1_cell[0], Temp, 0.154, dx23_cell[0], dx32_cell[0])
+		channel, dt_cell = self.hqsample.sample_channel(p1_cell[0], Temp, dx23_cell[0], dx32_cell[0])
 		
 		# Boost evolution time back to lab frame
-		dt_lab = p1_lab[0]/p1_cell[0]*dt_cell
-
+		cdef double dtHQ = p1_lab[0]/p1_cell[0]*dt_cell
+		
 		# If not scattered, return channel=-1, evolution time in Lab frame and origin al p1(lab)
 		if channel < 0:
-			self.channel = channel
-			self.dtHQ = dt_lab
-			self.pnew = p1_lab
-			return True
+			pnew = p1_lab
 		else:
-		# Sample initial state and return initial state particle four vectors 
-		# Imagine rotate p1_cell to align with z-direction, construct p2_cell_align, ...		
+			# Sample initial state and return initial state particle four vectors 
+			# Imagine rotate p1_cell to align with z-direction, construct p2_cell_align, ...				
 			self.hqsample.sample_initial(channel, p1_cell[0], Temp, dx23_cell[0], dx32_cell[0])
 			p1_cell_Z = self.hqsample.IS[0]
 
@@ -293,37 +340,40 @@ cdef class event:
 			dx23_com = [pi/p1_cell_Z[0]*dx23_cell[0] for pi in p1_com]
 
 			# Sample final state momentum in Com frame, with incoming paticles on z-axis
-			self.hqsample.sample_final(channel, s, Temp, dx23_com[0], a1, a2)		
+			self.hqsample.sample_final(channel, s, Temp, dx23_com[0], a1, a2)
 
 			p1_com_Z_new = self.hqsample.FS[0]
 			# Rotate final states back to original Com frame (not z-axis aligened)
-			p1_com_new = rotate_back_from_D(p1_com_Z_new, p1_com[1], p1_com[2], p1_com[3])	
+			p1_com_new = rotate_back_from_D(p1_com_Z_new, p1_com[1], p1_com[2], p1_com[3])
 			# boost back to cell frame z-aligned
-			p1_cell_Z_new = boost4_By3(p1_com_new, [-v3com[0], -v3com[1], -v3com[2]])	
+			p1_cell_Z_new = boost4_By3(p1_com_new, [-v3com[0], -v3com[1], -v3com[2]])	   
 			# rotate back to original cell frame
 			p1_cell_new = rotate_back_from_D(p1_cell_Z_new, p1_cell[1], p1_cell[2], p1_cell[3])
 			# boost back to lab frame
-			p1_new = boost4_By3(p1_cell_new, [-v3cell[0], -v3cell[1], -v3cell[2]])
-			# return updated momentum of heavy quark
-
-			self.channel = channel
-			self.dtHQ = dt_lab
-			self.pnew = p1_new
-			return True
+			pnew = boost4_By3(p1_cell_new, [-v3cell[0], -v3cell[1], -v3cell[2]])
+		# return updated momentum of heavy quark
+			
+		return channel, dtHQ, pnew
 
 	cpdef HQ_hist(self):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		cdef vector[ vector[double] ] p, x
-		cdef vector[double] weight
 		p.clear()
 		x.clear()
-		weight.clear()
 		while it != self.active_HQ.end():
 			p.push_back(deref(it).p)
 			x.push_back(deref(it).x)
-			weight.push_back(deref(it).weight)
 			inc(it)
-		return np.array(p), np.array(x), np.array(weight)
+		return np.array(p), np.array(x)
+		
+	cpdef Init_pT(self):
+		cdef vector[particle].iterator it = self.active_HQ.begin()
+		cdef vector[double] Init_pT
+		Init_pT.clear()
+		while it != self.active_HQ.end():
+			Init_pT.push_back(deref(it).initial_pT)
+			inc(it)
+		return np.array(Init_pT)
 
 	cpdef reset_HQ_energy(self, E0=10.):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
@@ -337,6 +387,7 @@ cdef class event:
 			inc(it)
 	def get_hydro_field(self, key):
 		return self.hydro_reader.get_current_frame(key)
+
 
 
 
