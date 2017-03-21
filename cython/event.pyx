@@ -50,7 +50,7 @@ cdef class XY_sampler:
 		cdef double r = np.random.rand()
 		cdef int index = np.searchsorted(self.IntTaa, r)
 		cdef double nx = np.floor((index-1.)/self.Ny)
-		cdef double ny = index - 1 - nx*self.Ny         
+		cdef double ny = index - 1 - nx*self.Ny	 
 		nx += np.random.rand()
 		ny += np.random.rand()
 		return (nx - self.Nx/2.)*self.dxy, (ny - self.Ny/2.)*self.dxy
@@ -94,7 +94,7 @@ cdef class event:
 		
 
 		if self.transport == "LBT":
-			self.hqsample = HqEvo.HqEvo(options=physics_flags,		  
+			self.hqsample = HqEvo.HqEvo(options=physics_flags,		
 										table_folder=table_folder, refresh_table=False)
 		elif self.transport == "LGV":
 			self.deltat_lrf = physics_flags['dt_lrf']
@@ -115,7 +115,7 @@ cdef class event:
 		cdef double pmax, L
 		cdef vector[particle].iterator it
 
-		if init_flags['type'] == 'A+B':	  
+		if init_flags['type'] == 'A+B':   
 			print "Initialize for dynamic medium"
 			HQ_xy_sampler = XY_sampler(init_flags['TAB'], init_flags['dxy'])
 			pTmax = init_flags['pTmax']
@@ -157,14 +157,14 @@ cdef class event:
 			pmax = init_flags['pmax']
 			L = init_flags['L']
 			it = self.active_HQ.begin()
-			while it != self.active_HQ.end():					   
+			while it != self.active_HQ.end():					  
 				p = pow(rand()*1./RAND_MAX, 1./3.)*pmax
 				phipt = rand()*2.*M_PI/RAND_MAX
 				cospz = little_below_one*(rand()*2./RAND_MAX-1.)
 				sinpz = sqrt(1.-cospz**2)
 				deref(it).p.resize(4)
 				deref(it).x.resize(4)
-				deref(it).p = [sqrt(p**2+self.M**2), p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]			
+				deref(it).p = [sqrt(p**2+self.M**2), p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]		   
 				deref(it).t_last = 0.0; deref(it).t_last2 = 0.0
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
@@ -228,14 +228,14 @@ cdef class event:
 			vcell[1] *= scale
 			vcell[2] *= scale
 
-		if	T < 0.154:
+		if      T < 0.154:
 			freestream(it, 0.1)
 			return 
 		
 		if self.transport == 'LBT':
 			t_elapse_lab = (t - deref(it).t_last)/(deref(it).Nc + 1.) / GeVm1_to_fmc	# convert to GeV-1
 			t_elapse_lab2 = (t - deref(it).t_last2)/(deref(it).Nc2 + 1.) / GeVm1_to_fmc # convert to GeV-1
-			channel, dtHQ, pnew = self.update_HQ_LBT(deref(it).p, vcell, T, t_elapse_lab, t_elapse_lab2)			  
+			channel, dtHQ, pnew = self.update_HQ_LBT(deref(it).p, vcell, T, t_elapse_lab, t_elapse_lab2)		      
 			dtHQ *= GeVm1_to_fmc   # convert back to fm/c 
 			if self.channel == 0 or self.channel == 1:
 				deref(it).Nc += 1
@@ -268,10 +268,18 @@ cdef class event:
 		#Boost from p1(lab) to p1(cell)
 		boost4_By3(p1_cell, p1_lab, v3cell)
 		# there is no need to use p1_cell_Z, since we only need energy to do the Langevin transportation, and returns in Z
+<<<<<<< HEAD
 		p1_cell_Z_new = self.hqsample.update_by_Langevin(p1_cell[0], Temp)
 		rotate_back_from_D(p1_cell_new, p1_cell_Z_new, p1_cell[1], p1_cell[2], p1_cell[3])
 		cdef vector[double] pnew
 		boost4_By3(pnew, p1_cell_new, [-v3cell[0], -v3cell[1], -v3cell[2]])
+=======
+		self.hqsample.update_by_Langevin(p1_cell[0], Temp)
+		p1_cell_Z_new = self.hqsample.post_result
+		##print('event: ', p1_cell_Z_new)
+		p1_cell_new = rotate_back_from_D(p1_cell_Z_new, p1_cell[1], p1_cell[2], p1_cell[3])
+		cdef vector[double] pnew = boost4_By3(p1_cell_new, [-v3cell[0], -v3cell[1], -v3cell[2]])
+>>>>>>> 6949f71cfea4d196b143a0cbb86e746a0f76f457
 
 		cdef double dt_cell = self.deltat_lrf
 		cdef double dtHQ = p1_lab[0]/p1_cell[0] * dt_cell  #? what is this for??
@@ -291,7 +299,7 @@ cdef class event:
 		cdef vector[double] p1_cell, p1_cell_Z, p1_com, \
 			 p1_com_Z_new, p1_com_new, \
 			 p1_cell_Z_new, p1_cell_new,\
-			 pnew, fs,	   \
+			 pnew, fs,	 \
 			 dx23_cell, dx32_cell, dx23_com, \
 			 v3com, pbuffer
 
@@ -346,7 +354,7 @@ cdef class event:
 			p1_com_Z_new = self.hqsample.FS[0]
 			# Rotate final states back to original Com frame (not z-axis aligened)
 			rotate_back_from_D(p1_com_new, p1_com_Z_new, p1_com[1], p1_com[2], p1_com[3])
-			# boost back to cell frame z-aligned
+			# boost back to cell frame z-align
 			boost4_By3(p1_cell_Z_new, p1_com_new, [-v3com[0], -v3com[1], -v3com[2]])	   
 			# rotate back to original cell frame
 			rotate_back_from_D(p1_cell_new, p1_cell_Z_new, p1_cell[1], p1_cell[2], p1_cell[3])
