@@ -4,11 +4,6 @@ import event
 import h5py
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
-# FONLL pT spectra
-pt, dsigma = np.loadtxt(sys.argv[3]).T
-dfdpt2 = interp1d(pt, dsigma)
-def pT_weight(pt, y):
-        return dfdpt2(pt)
 
 # Medium option
 box_info = {'Temp'  : 0.3, 
@@ -26,7 +21,7 @@ dynamic_config = {  'type'	  : 'dynamic',
 LBT_config = {  'physics'   : 'LBT',
                                 '2->2'    : True,
                                 '2->3'    : True,
-                                '3->2'    : True,
+                                '3->2'    : False,
                                 'Nf'        : 3,
                                 'mass'    : 1.3 }  
 
@@ -42,7 +37,7 @@ box_init = {	'type'  : 'box',
 				'L'	 : 10.,
 				'pmax'  : 10.   }
 
-TAA = np.loadtxt(sys.argv[2]).T ## p=0.
+TAA = np.loadtxt(sys.argv[2]).T**2 ## p=0.
 realistic_init =  { 'type'		  : 'A+B',
 					'sample power'  : 1.,
 					'pTmin'		 : 0.1,
@@ -66,15 +61,15 @@ f.create_dataset('init_pT', data=Init_pT)
 for i in range(500):
 	print("t = %1.2f [fm/c]"%e1.sys_time() )
 	status = e1.perform_hydro_step()#StaticPropertyDictionary=box_info)
-	if i%1 == 0:
+	if i%10 == 0:
 		dsp, dsx = e1.HQ_hist()
 		f.create_dataset('p-%d'%i, data=dsp)
 		f.create_dataset('x-%d'%i, data=dsx)
-	plt.clf()
-	plt.scatter(dsx.T[1], dsx.T[2], s=0.4, color='orange', alpha=0.3)
-	T = e1.get_hydro_field('Temp')
-	plt.imshow(np.flipud(T.T), extent = [-13., 13., -13., 13.])
-	plt.pause(0.1)
+	#plt.clf()
+	#plt.scatter(dsx.T[1], dsx.T[2], s=0.4, color='orange', alpha=0.3)
+	#T = e1.get_hydro_field('Temp')
+	#plt.imshow(np.flipud(T.T), extent = [-13., 13., -13., 13.])
+	#plt.pause(0.1)
 	if not status:
 		break
 f.close()
