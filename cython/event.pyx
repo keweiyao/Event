@@ -268,18 +268,11 @@ cdef class event:
 		#Boost from p1(lab) to p1(cell)
 		boost4_By3(p1_cell, p1_lab, v3cell)
 		# there is no need to use p1_cell_Z, since we only need energy to do the Langevin transportation, and returns in Z
-<<<<<<< HEAD
+
 		p1_cell_Z_new = self.hqsample.update_by_Langevin(p1_cell[0], Temp)
 		rotate_back_from_D(p1_cell_new, p1_cell_Z_new, p1_cell[1], p1_cell[2], p1_cell[3])
 		cdef vector[double] pnew
 		boost4_By3(pnew, p1_cell_new, [-v3cell[0], -v3cell[1], -v3cell[2]])
-=======
-		self.hqsample.update_by_Langevin(p1_cell[0], Temp)
-		p1_cell_Z_new = self.hqsample.post_result
-		##print('event: ', p1_cell_Z_new)
-		p1_cell_new = rotate_back_from_D(p1_cell_Z_new, p1_cell[1], p1_cell[2], p1_cell[3])
-		cdef vector[double] pnew = boost4_By3(p1_cell_new, [-v3cell[0], -v3cell[1], -v3cell[2]])
->>>>>>> 6949f71cfea4d196b143a0cbb86e746a0f76f457
 
 		cdef double dt_cell = self.deltat_lrf
 		cdef double dtHQ = p1_lab[0]/p1_cell[0] * dt_cell  #? what is this for??

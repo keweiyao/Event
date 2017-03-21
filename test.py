@@ -37,7 +37,7 @@ box_init = {	'type'  : 'box',
 				'L'	 : 10.,
 				'pmax'  : 10.   }
 
-TAA = np.loadtxt(sys.argv[2]).T**2 ## p=0.
+TAA = np.loadtxt(sys.argv[2]).T ## p=0.
 realistic_init =  { 'type'		  : 'A+B',
 					'sample power'  : 1.,
 					'pTmin'		 : 0.1,
