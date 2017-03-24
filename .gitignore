@@ -7,6 +7,6 @@ cython/*.cpp
 fig*/
 plot*/
 table*/
-hydro*/
+*hydro*/
 *spectra*/
 

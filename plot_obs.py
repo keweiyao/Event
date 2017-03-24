@@ -13,36 +13,56 @@ AAinit = interp1d(x0, y1)
 ratio = AAtot/pptot
 print(ratio)
 
-f1 = h5py.File(sys.argv[3])
-initial_pT = f1['init_pT'].value
-weight1 = initial_pT*AAinit(initial_pT)
-f2 = h5py.File(sys.argv[4])
-initial_pT = f2['init_pT'].value
-weight2 = initial_pT*AAinit(initial_pT)
-#f3 = h5py.File(sys.argv[5])
-#initial_pT = f3['init_pT'].value
-#weight3 = initial_pT*AAinit(initial_pT)
 
-for i in range(229):
+flist = [h5py.File(fname, 'r') for fname in sys.argv[3:] ]
+
+def get_Raa(pmu, pT0, AAtot):
+	pT = np.sqrt(pmu[1]**2 + pmu[2]**2)
+	weight = pT0*AAinit(pT0)
+	H, be = np.histogram(pT, bins=25, range=[0.1, 50], normed=True, weights=weight)
+	x = (be[1:] + be[:-1])*0.5
+	ppy = ppref(x)
+	return x, H/x/ppy*AAtot
+
+def get_v2(pmu, pT0):
+	N = 20
+	n = 8
+	pTbins = np.concatenate([np.linspace(0, 10, n)[:-1], np.linspace(10, 50, N+2-n)])
+	pT = np.sqrt(pmu[1]**2 + pmu[2]**2)
+	q2 = -(pmu[1]**2 - pmu[2]**2)/(pmu[1]**2 + pmu[2]**2)
+	weight = pT0*AAinit(pT0)
+	v2 = np.zeros(N)
+	for i in range(N):
+		index = (pT > pTbins[i]) & (pT < pTbins[i+1])
+		v2[i] = np.average(q2[index], weights=weight[index])
+	x = (pTbins[1:] + pTbins[:-1])*0.5
+	return x, v2
+
+for i in range(129):
 	if i%10 != 0:
 		continue
-	ds = f1['p-%d'%i].value.T
-	pT1 = (ds[1]**2 + ds[2]**2)**0.5
-	ds = f2['p-%d'%i].value.T
-	pT2 = (ds[1]**2 + ds[2]**2)**0.5
-	#ds = f3['p-%d'%i].value.T
-	#pT3 = (ds[1]**2 + ds[2]**2)**0.5
 	plt.clf()
-	H1, be = np.histogram(pT1, bins=30, range=[0.1, 50], normed=True, weights=weight1)
-	H2, be = np.histogram(pT2, bins=30, range=[0.1, 50], normed=True, weights=weight2)
-	#H3, be = np.histogram(pT3, bins=30, range=[0.1, 50], normed=True, weights=weight3)
-	dpt = be[1] - be[0]
-	if i==0:
-		x = (be[1:] + be[:-1])*0.5
-		ppy = ppref(x)
-	plt.plot(x, H1/x/(ppy)*AAtot, 'r-')
-	plt.plot(x, H2/x/(ppy)*AAtot, 'g-')
-	#plt.plot(x, H3/x/(ppy)*AAtot, 'b-')
+	
+	for j, f in enumerate(flist):
+		pmu = f['p-%d'%i].value.T
+		pT0 = f['init_pT'].value
+		
+		plt.subplot(1,2,1)
+		x, y = get_Raa(pmu, pT0, AAtot)
+		plt.plot(x, y, label = sys.argv[3+j])
+		
+		plt.subplot(1,2,2)
+		x, y = get_v2(pmu, pT0)
+		plt.plot(x, y, 'o-', label = sys.argv[3+j])
+		
+	plt.subplot(1,2,1)
 	plt.axis([0,50,0,1.4])
+	plt.legend()
+	
+	plt.subplot(1,2,2)
+	plt.plot([0,50],[0,0])
+	plt.axis([0, 50, -0.2, 0.4])
+	plt.legend()
+	
 	plt.pause(0.1)
 plt.show()

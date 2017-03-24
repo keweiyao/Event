@@ -18,7 +18,7 @@ import HqLGV
 cdef double GeVm1_to_fmc = 0.197
 cdef double little_below_one = 1. - 1e-2
 cdef double little_above_one = 1. + 1e-2
-cdef double lambda_rescale = 0.5
+cdef double lambda_rescale = 0.4
 
 #-----------Particle data struct------------------------------------
 cdef extern from "../src/utility.h":
@@ -53,6 +53,7 @@ cdef class XY_sampler:
 		cdef double ny = index - 1 - nx*self.Ny	 
 		nx += np.random.rand()
 		ny += np.random.rand()
+		# to be examined
 		return (nx - self.Nx/2.)*self.dxy, (ny - self.Ny/2.)*self.dxy
 #-----------Event Class---------------------------------------------
 cdef bool freestream(vector[particle].iterator it, double dt):
@@ -141,7 +142,7 @@ cdef class event:
 				deref(it).t_last = 0.; deref(it).t_last2 = 0.
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
-				deref(it).weight = 1.0 #pT**(2. - 1./oversample_power)*df_dpt2dy(pT, y)
+				deref(it).weight = 1.0
 				deref(it).initial_pT = pT
 				# free streaming to hydro starting time
 				free_time = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
@@ -228,7 +229,7 @@ cdef class event:
 			vcell[1] *= scale
 			vcell[2] *= scale
 
-		if      T < 0.154:
+		if T < 0.154:
 			freestream(it, 0.1)
 			return 
 		
