@@ -29,6 +29,7 @@ void rotate_ByEuler(std::vector<double> & Ap, std::vector<double> const& A, doub
 	Ap[iz] = s1*s2*A[ix] 				+ (-c1*s2)*A[iy] 			+ c2*A[iz];
 }
 
+// only works for 4-vector
 void rotate_back_from_D(std::vector<double> & Ap, std::vector<double> const& A, double & Dx, double & Dy, double & Dz){
 	double Dperp = std::sqrt(Dx*Dx + Dy*Dy);
 	double D = std::sqrt(Dperp*Dperp + Dz*Dz);
@@ -38,14 +39,11 @@ void rotate_back_from_D(std::vector<double> & Ap, std::vector<double> const& A, 
 	}
 	double c2 = Dz/D, s2 = Dperp/D;
 	double c3 = Dx/Dperp, s3 = Dy/Dperp;
-	size_t offset = 0;
-	if (A.size() == 4) {offset = 1; Ap.resize(4); Ap[0] = A[0];}
-	else {Ap.resize(3);}
-	size_t ix = offset, iy = offset+1, iz = offset+2;
-
-	Ap[ix] = -s3*A[ix] 	- c2*c3*A[iy] 	+ s2*c3*A[iz];
-	Ap[iy] = c3*A[ix] 	- c2*s3*A[iy] 	+ s2*s3*A[iz];
-	Ap[iz] =              s2*A[iy] 	    + c2*A[iz];
+	Ap.resize(4);
+	Ap[0] = A[0];
+	Ap[1] = -s3*A[1] 	- c3*(c2*A[2] 	- s2*A[3]);
+	Ap[2] = c3*A[1] 	- s3*(c2*A[2] 	- s2*A[3]);
+	Ap[3] =              s2*A[2] 	    + c2*A[3];
 }
 
 // Rotation around ith axis, return vector components in the new frame, passive

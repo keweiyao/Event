@@ -9,8 +9,8 @@ import numpy as np
 import sys
 cimport numpy as np
 
-sys.path.append('../HQ-Evo/')
-sys.path.append('../Medium-Reader')
+#sys.path.append('../HQ-Evo/')
+#sys.path.append('../Medium-Reader')
 import HqEvo
 import medium
 import HqLGV
@@ -23,12 +23,12 @@ cdef double lambda_rescale = 0.4
 #-----------Particle data struct------------------------------------
 cdef extern from "../src/utility.h":
 	cdef struct particle:
+		bool freezeout
 		vector[double] p
 		vector[double] x
 		double t_last, t_last2
 		int Nc, Nc2
 		int count22, count23, count32
-		double weight
 		double initial_pT
 
 #-----------Production vertex sampler class-------------------------
@@ -55,22 +55,14 @@ cdef class XY_sampler:
 		ny += np.random.rand()
 		# to be examined
 		return (nx - self.Nx/2.)*self.dxy, (ny - self.Ny/2.)*self.dxy
+		
 #-----------Event Class---------------------------------------------
-cdef bool freestream(vector[particle].iterator it, double dt):
+cdef freestream(vector[particle].iterator it, double dt):
+	cdef double da = dt/deref(it).p[0]
 	deref(it).x[0] = deref(it).x[0] + dt
-	deref(it).x[1] = deref(it).x[1] + deref(it).p[1]/deref(it).p[0]*dt
-	deref(it).x[2] = deref(it).x[2] + deref(it).p[2]/deref(it).p[0]*dt
-	deref(it).x[3] = deref(it).x[3] + deref(it).p[3]/deref(it).p[0]*dt
-	return True
-
-# Yingru 
-cdef bool freestream_stay(vector[particle].iterator it, double dt):
-	deref(it).x[0] = deref(it).x[0] + dt
-	deref(it).x[1] = deref(it).x[1] 
-	deref(it).x[2] = deref(it).x[2] 
-	deref(it).x[3] = deref(it).x[3] 
-	return True
-
+	deref(it).x[1] = deref(it).x[1] + deref(it).p[1]*da
+	deref(it).x[2] = deref(it).x[2] + deref(it).p[2]*da
+	deref(it).x[3] = deref(it).x[3] + deref(it).p[3]*da
 
 
 cdef class event:
@@ -83,8 +75,9 @@ cdef class event:
 	cdef int channel
 	cdef double dtHQ
 	cdef double deltat_lrf
+	cdef double Tc
 
-	def __cinit__(self, medium_flags, physics_flags, table_folder='./tables'):
+	def __cinit__(self, medium_flags, physics_flags, Tc=0.154, table_folder='./tables'):
 		self.mode = medium_flags['type']
 		self.transport = physics_flags['physics']
 		self.M = physics_flags['mass']
@@ -92,6 +85,7 @@ cdef class event:
 		self.tau0 = self.hydro_reader.init_tau()
 		self.dtau = self.hydro_reader.dtau()
 		self.tau = self.tau0
+		self.Tc = Tc
 		
 
 		if self.transport == "LBT":
@@ -142,7 +136,7 @@ cdef class event:
 				deref(it).t_last = 0.; deref(it).t_last2 = 0.
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
-				deref(it).weight = 1.0
+				deref(it).freezeout = False
 				deref(it).initial_pT = pT
 				# free streaming to hydro starting time
 				free_time = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
@@ -169,7 +163,7 @@ cdef class event:
 				deref(it).t_last = 0.0; deref(it).t_last2 = 0.0
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
-				deref(it).weight = 1.0
+				deref(it).freezeout = False
 				deref(it).initial_pT = p*sinpz
 				x = rand()*L*2./RAND_MAX - L
 				y = rand()*L*2./RAND_MAX - L
@@ -199,12 +193,15 @@ cdef class event:
 		elif self.mode == 'dynamic':
 			it = self.active_HQ.begin()
 			while it != self.active_HQ.end():
-				t, x, y, z = deref(it).x
-				tauQ = sqrt(t**2 - z**2)
-				while tauQ <= self.tau:
-					self.perform_HQ_step(it)
+				if deref(it).freezeout == False:
 					t, x, y, z = deref(it).x
 					tauQ = sqrt(t**2 - z**2)
+					while tauQ <= self.tau:
+						self.perform_HQ_step(it)
+						if deref(it).freezeout:
+							break
+						t, x, y, z = deref(it).x
+						tauQ = sqrt(t**2 - z**2)
 				inc(it)
 		else:
 			raise ValueError("Mode not implemented")
@@ -222,16 +219,16 @@ cdef class event:
 		tauQ = sqrt(t**2 - z**2)
 		vcell.resize(3)
 		T, vcell[0], vcell[1], vcell[2] = self.hydro_reader.interpF(tauQ, [x, y, z, t], ['Temp', 'Vx', 'Vy', 'Vz'])
+		if T <= self.Tc:
+			deref(it).freezeout = True
+			return 
+		
 		vabs2 = vcell[0]**2 + vcell[1]**2 + vcell[2]**2
 		if vabs2 >= little_below_one**2:
 			scale = 1.0/sqrt(vabs2)/little_above_one
 			vcell[0] *= scale
 			vcell[1] *= scale
 			vcell[2] *= scale
-
-		if T < 0.154:
-			freestream(it, 0.1)
-			return 
 		
 		if self.transport == 'LBT':
 			t_elapse_lab = (t - deref(it).t_last)/(deref(it).Nc + 1.) / GeVm1_to_fmc	# convert to GeV-1
