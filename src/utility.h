@@ -27,6 +27,7 @@ void rotate_ByAxis(std::vector<double> & Ap, std::vector<double> const& A, doubl
 // This boost operation takes 3 velocity (vx, vy, vz, of the new frame relative to the old frame)
 // And returns the A vector by its components in the new frame.
 void boost4_By3(std::vector<double> & Ap, std::vector<double> const& A, std::vector<double> const& v);
+void boost4_By3_back(std::vector<double> & Ap, std::vector<double> const& A, std::vector<double> const& v);
 
 // This boost operation takes 4 velocity (u0, u1, u2, u3 of the new frame relative to the old frame)
 // And returns the A vector by its components in the new frame.
