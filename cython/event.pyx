@@ -170,14 +170,17 @@ cdef class event:
 
 	cpdef bool perform_hydro_step(self, StaticPropertyDictionary=None) :
 		PyErr_CheckSignals()
-		cdef bool status = True
 		if self.mode == 'dynamic':
-			status = self.hydro_reader.load_next()
-		if self.mode == 'static':
+			self.hydro_reader.load_next()
+		elif self.mode == 'static':
 			if StaticPropertyDictionary==None:
 				raise ValueError("static meidum property not defined")
 			else:
-				status = self.hydro_reader.load_next(StaticPropertyDictionary=StaticPropertyDictionary)
+				self.hydro_reader.load_next(StaticPropertyDictionary=StaticPropertyDictionary)
+		else:
+			raise ValueError("medium mode not defined")
+		status = self.hydro_reader.hydro_status()
+
 		self.tau += self.dtau
 		cdef double t, x, y, z, tauQ
 		cdef vector[particle].iterator it
@@ -215,7 +218,7 @@ cdef class event:
 		t, x, y, z = deref(it).x
 		tauQ = sqrt(t**2 - z**2)
 		vcell.resize(3)
-		T, vcell[0], vcell[1], vcell[2] = self.hydro_reader.interpF(tauQ, [t,x,y,z], ['Temp', 'Vx', 'Vy', 'Vz'])
+		T, vcell[0], vcell[1], vcell[2] = self.hydro_reader.interpF(tauQ, deref(it).x, ['Temp', 'Vx', 'Vy', 'Vz'])
 		if T <= self.Tc:
 			deref(it).freezeout = True
 			return 
