@@ -28,7 +28,9 @@ cdef extern from "../src/utility.h":
 		double t_last, t_last2
 		int Nc, Nc2
 		int count22, count23, count32
-		double initial_pT
+		vector[double] initp
+		vector[double] vcell
+		double weight
 
 #-----------Production vertex sampler class-------------------------
 cdef class XY_sampler:
@@ -134,7 +136,9 @@ cdef class event:
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
 				deref(it).freezeout = False
-				deref(it).initial_pT = pT
+				deref(it).init_p = deref(it).p
+				deref(it).vcell = [0., 0., 0.]
+				deref(it).weight = 1.
 				# free streaming to hydro starting time
 				free_time = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
 				x, y = HQ_xy_sampler.sample_xy()
@@ -161,7 +165,9 @@ cdef class event:
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
 				deref(it).freezeout = False
-				deref(it).initial_pT = p*sinpz
+				deref(it).init_p = deref(it).p
+				deref(it).vcell = [0., 0., 0.]
+				deref(it).weight = 1.
 				x = rand()*L*2./RAND_MAX - L
 				y = rand()*L*2./RAND_MAX - L
 				z = rand()*L*2./RAND_MAX - L
@@ -221,6 +227,7 @@ cdef class event:
 		T, vcell[0], vcell[1], vcell[2] = self.hydro_reader.interpF(tauQ, deref(it).x, ['Temp', 'Vx', 'Vy', 'Vz'])
 		if T <= self.Tc:
 			deref(it).freezeout = True
+			deref(it).vcell = vcell
 			return 
 		
 		vabs2 = vcell[0]**2 + vcell[1]**2 + vcell[2]**2
@@ -374,6 +381,31 @@ cdef class event:
 			x.push_back(deref(it).x)
 			inc(it)
 		return np.array(p), np.array(x)
+
+	cpdef output_oscar(self, filename):
+		cdef vector[particle].iterator it = self.active_HQ.begin()
+		cdef size_t i=0
+		with open(filename, 'r') as f:
+			header_block="""
+			# OSC1999A
+			# final_id_p_x
+			# Duke-Heavy-Quark-Project 1.0
+			# 
+			# A + B --(langevin/LBT)--> charm 
+			"""
+			f.write(header_block)
+			lineformat = "{:<8}"*19
+			while it != self.active_HQ.end():
+				vcell = list(deref(it).vcell)
+				p0 = [deref(it).initp[1],deref(it).initp[2],deref(it).initp[3]]
+				p = [deref(it).p[1],deref(it).p[2],deref(it).p[3],deref(it).p[0]]
+				x = [deref(it).x[1],deref(it).x[2],deref(it).x[3],deref(it).x[0]]
+				line.format(i, deref(it).id, *p, self.M, *x, self.Tc, *vcell, *p0, deref(it).weight)
+				f.write(line)
+				i += 1
+				inc(it)
+			f.write("0\t0\n")
+		return
 		
 	cpdef Init_pT(self):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
@@ -394,6 +426,7 @@ cdef class event:
 			pz = deref(it).p[3]*ratio 
 			deref(it).p = [E0, px, py, pz]
 			inc(it)
+
 	def get_hydro_field(self, key):
 		return self.hydro_reader.get_current_frame(key)
 
