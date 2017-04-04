@@ -7,12 +7,15 @@ from libc.math cimport *
 from cython.operator cimport dereference as deref, preincrement as inc
 from cpython.exc cimport PyErr_CheckSignals
 import numpy as np
-import sys
 cimport numpy as np
+import sys
+import fortranformat as ff
+
 
 import HqEvo
-import medium
 import HqLGV
+import medium
+
 
 cdef double GeVm1_to_fmc = 0.197
 cdef double little_below_one = 1. - 1e-4
@@ -31,6 +34,7 @@ cdef extern from "../src/utility.h":
 		vector[double] initp
 		vector[double] vcell
 		double weight
+		int pid
 
 #-----------Production vertex sampler class-------------------------
 cdef class XY_sampler:
@@ -136,16 +140,16 @@ cdef class event:
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
 				deref(it).freezeout = False
-				deref(it).init_p = deref(it).p
+				deref(it).initp = deref(it).p
 				deref(it).vcell = [0., 0., 0.]
-				deref(it).weight = 1.
+				deref(it).pid = 4*np.random.choice([1, -1])
 				# free streaming to hydro starting time
-				free_time = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
+				freetime = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
 				x, y = HQ_xy_sampler.sample_xy()
 				z = 0.
 				deref(it).x = [0.0, x, y, z]
-				deref(it).t_last = free_time; deref(it).t_last2 = free_time
-				freestream(it, free_time)
+				deref(it).t_last = freetime; deref(it).t_last2 = freetime
+				freestream(it, freetime)
 				inc(it)
 
 		if init_flags['type'] == 'box':
@@ -165,9 +169,9 @@ cdef class event:
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
 				deref(it).freezeout = False
-				deref(it).init_p = deref(it).p
+				deref(it).initp = deref(it).p
 				deref(it).vcell = [0., 0., 0.]
-				deref(it).weight = 1.
+				deref(it).pid = 4*np.random.choice([1, -1])
 				x = rand()*L*2./RAND_MAX - L
 				y = rand()*L*2./RAND_MAX - L
 				z = rand()*L*2./RAND_MAX - L
@@ -382,39 +386,38 @@ cdef class event:
 			inc(it)
 		return np.array(p), np.array(x)
 
+	cpdef Init_pT(self):
+		cdef vector[particle].iterator it = self.active_HQ.begin()
+		cdef vector[double] pT
+		pT.clear()
+		while it != self.active_HQ.end():
+			pT.push_back(sqrt(deref(it).p[1]**2+deref(it).p[2]**2))
+			inc(it)
+		return np.array(pT)
+
+
 	cpdef output_oscar(self, filename):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		cdef size_t i=0
-		with open(filename, 'r') as f:
-			header_block="""
-			# OSC1999A
-			# final_id_p_x
-			# Duke-Heavy-Quark-Project 1.0
-			# 
-			# A + B --(langevin/LBT)--> charm 
-			"""
-			f.write(header_block)
-			lineformat = "{:<8}"*19
+		with open(filename, 'w') as f:
+			head3 = ff.FortranRecordWriter(
+				'2(a8,2x),1x,i3,1x,i6,3x,i3,1x,i6,3x,a4,2x,e10.4,2x,i8')
+			f.write('OSC1997A\n')
+			f.write('final_id_p_x\n')
+			f.write(head3.write(['lbt', '1.0alpha', 208, 82, 208, 82, 'aacm', 1380, 1])+'\n')
+			eventhead = ff.FortranRecordWriter('i10,2x,i10,2x,f8.3,2x,f8.3,2x,i4,2x,i4,2X,i7')
+			f.write(eventhead.write([1, self.active_HQ.size(), 0., 0., 1, 1, 1])+'\n')
+			line = ff.FortranRecordWriter('i10,2x,i10,17(2x,d12.6)')
 			while it != self.active_HQ.end():
-				vcell = list(deref(it).vcell)
-				p0 = [deref(it).initp[1],deref(it).initp[2],deref(it).initp[3]]
-				p = [deref(it).p[1],deref(it).p[2],deref(it).p[3],deref(it).p[0]]
-				x = [deref(it).x[1],deref(it).x[2],deref(it).x[3],deref(it).x[0]]
-				line.format(i, deref(it).id, *p, self.M, *x, self.Tc, *vcell, *p0, deref(it).weight)
-				f.write(line)
+				f.write(line.write([i, deref(it).pid, 
+					deref(it).p[1],deref(it).p[2],deref(it).p[3],deref(it).p[0], 						self.M, 
+					deref(it).x[1],deref(it).x[2],deref(it).x[3],deref(it).x[0], 						self.Tc, 
+					deref(it).vcell[0], deref(it).vcell[1], deref(it).vcell[2],
+					 deref(it).initp[1],deref(it).initp[2],deref(it).initp[3], 
+					1.])+'\n')
 				i += 1
 				inc(it)
-			f.write("0\t0\n")
 		return
-		
-	cpdef Init_pT(self):
-		cdef vector[particle].iterator it = self.active_HQ.begin()
-		cdef vector[double] Init_pT
-		Init_pT.clear()
-		while it != self.active_HQ.end():
-			Init_pT.push_back(deref(it).initial_pT)
-			inc(it)
-		return np.array(Init_pT)
 
 	cpdef reset_HQ_energy(self, E0=10.):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
@@ -427,7 +430,7 @@ cdef class event:
 			deref(it).p = [E0, px, py, pz]
 			inc(it)
 
-	def get_hydro_field(self, key):
+	cpdef get_hydro_field(self, key):
 		return self.hydro_reader.get_current_frame(key)
 
 
