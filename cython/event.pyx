@@ -285,8 +285,13 @@ cdef class event:
 		boost4_By3_back(pnew, p1_cell_new, v3cell)
 
 		cdef double dt_cell = self.deltat_lrf
-		cdef double dtHQ = p1_lab[0]/p1_cell[0] * dt_cell  #? what is this for??
-
+		
+		#cdef double dtHQ = p1_lab[0]/p1_cell[0] * dt_cell
+		#	||
+		#	\/
+		# shanshan's dt
+		cdef double dtHQ = dt_cell/sqrt(1. - v3cell[0]**2 - v3cell[1]**2 - v3cell[2]**2)
+		
 		cdef int channel = 10  #? need to change this, reserve a spectial number for Langevin transport
 		return channel, dtHQ, pnew
 
