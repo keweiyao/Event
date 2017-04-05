@@ -18,9 +18,9 @@ import medium
 
 
 cdef double GeVm1_to_fmc = 0.197
-cdef double little_below_one = 1. - 1e-4
-cdef double little_above_one = 1. + 1e-4
-cdef double lambda_rescale = 1.#0.4
+cdef double little_below_one = 1. - 1e-6
+cdef double little_above_one = 1. + 1e-6
+
 
 #-----------Particle data struct------------------------------------
 cdef extern from "../src/utility.h":
@@ -62,7 +62,7 @@ cdef class XY_sampler:
 		return (nx - self.Nx/2.)*self.dxy, (ny - self.Ny/2.)*self.dxy
 		
 #-----------Event Class---------------------------------------------
-cdef freestream(vector[particle].iterator it, double dt):
+cdef void freestream(vector[particle].iterator it, double dt):
 	cdef double da = dt/deref(it).p[0]
 	deref(it).x[0] = deref(it).x[0] + dt
 	deref(it).x[1] = deref(it).x[1] + deref(it).p[1]*da
@@ -79,10 +79,17 @@ cdef class event:
 	cdef double tau0, dtau, tau
 	cdef double deltat_lrf
 	cdef double Tc
+	cdef double lambda_rescale, Kfactor
 
 	def __cinit__(self, medium_flags, physics_flags, Tc=0.154, table_folder='./tables'):
 		self.mode = medium_flags['type']
 		self.transport = physics_flags['physics']
+		if self.transport == 'LBT':
+			self.Kfactor = physics_flags['Kfactor']
+			self.lambda_rescale = physics_flags['lambda_rescale']
+		else:
+			self.Kfactor = 1.
+			self.lambda_rescale = 1.
 		self.M = physics_flags['mass']
 		self.hydro_reader = medium.Medium(medium_flags=medium_flags)
 		self.tau0 = self.hydro_reader.init_tau()
@@ -124,7 +131,7 @@ cdef class event:
 			print "Heavy quark will be free streamed to the starting time of hydro"
 			it = self.active_HQ.begin()
 			while it != self.active_HQ.end():
-				pT = 0.
+				pT = -1.
 				while pT < pTmin or pT > pTmax:
 					if alpha > 0.:
 						pT = (rand()*1./RAND_MAX)**alpha*(pTmax)
@@ -285,13 +292,8 @@ cdef class event:
 		boost4_By3_back(pnew, p1_cell_new, v3cell)
 
 		cdef double dt_cell = self.deltat_lrf
-		
 		cdef double dtHQ = p1_lab[0]/p1_cell[0] * dt_cell
-		#	||
-		#	\/
-		# shanshan's dt
-		#cdef double dtHQ = dt_cell/sqrt(1. - v3cell[0]**2 - v3cell[1]**2 - v3cell[2]**2)
-		
+
 		cdef int channel = 10  #? need to change this, reserve a spectial number for Langevin transport
 		return channel, dtHQ, pnew
 
@@ -322,7 +324,7 @@ cdef class event:
 			dx32_cell[i] = p1_cell[i]/p1_lab[0]*mean_dt32_lab
 
 		# Sample channel in cell, return channl index and evolution time seen from cell
-		channel, dt_cell = self.hqsample.sample_channel(p1_cell[0], Temp, dx23_cell[0]*lambda_rescale, dx32_cell[0]*lambda_rescale)
+		channel, dt_cell = self.hqsample.sample_channel(p1_cell[0], Temp, dx23_cell[0]*self.lambda_rescale, dx32_cell[0]*self.lambda_rescale)
 		# Boost evolution time back to lab frame
 		cdef double dtHQ = p1_lab[0]/p1_cell[0]*dt_cell
 		
@@ -332,7 +334,7 @@ cdef class event:
 		else:
 			# Sample initial state and return initial state particle four vectors 
 			# Imagine rotate p1_cell to align with z-direction, construct p2_cell_align, ...				
-			self.hqsample.sample_initial(channel, p1_cell[0], Temp, dx23_cell[0]*lambda_rescale, dx32_cell[0]*lambda_rescale)
+			self.hqsample.sample_initial(channel, p1_cell[0], Temp, dx23_cell[0]*self.lambda_rescale, dx32_cell[0]*self.lambda_rescale)
 			p1_cell_Z = self.hqsample.IS[0]
 
 			# Center of mass frame of p1_cell_align and other particles, and take down orientation of p1_com
@@ -411,7 +413,7 @@ cdef class event:
 			f.write('final_id_p_x\n')
 			f.write(head3.write(['lbt', '1.0alpha', 208, 82, 208, 82, 'aacm', 1380, 1])+'\n')
 			eventhead = ff.FortranRecordWriter('i10,2x,i10,2x,f8.3,2x,f8.3,2x,i4,2x,i4,2X,i7')
-			f.write(eventhead.write([1, self.active_HQ.size(), 0., 0., 1, 1, 1])+'\n')
+			f.write(eventhead.write([1, self.active_HQ.size(), 0.001, 0.001, 1, 1, 1])+'\n')
 			line = ff.FortranRecordWriter('i10,2x,i10,17(2x,d12.6)')
 			while it != self.active_HQ.end():
 				f.write(line.write([i, deref(it).pid, 
