@@ -50,6 +50,7 @@ struct particle{
 	int count22, count23, count32;
 	std::vector<double> initp;
 	std::vector<double> vcell;
+	double weight, Tf;
 	int pid;
 };
 

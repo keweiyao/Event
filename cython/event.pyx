@@ -33,7 +33,7 @@ cdef extern from "../src/utility.h":
 		int count22, count23, count32
 		vector[double] initp
 		vector[double] vcell
-		double weight
+		double weight, Tf
 		int pid
 
 #-----------Production vertex sampler class-------------------------
@@ -81,7 +81,7 @@ cdef class event:
 	cdef double Tc
 	cdef double lambda_rescale, Kfactor
 
-	def __cinit__(self, medium_flags, physics_flags, Tc=0.154, table_folder='./tables'):
+	def __cinit__(self, medium_flags, physics_flags, Tc=0.154, table_folder='./tables', refresh_table=False):
 		self.mode = medium_flags['type']
 		self.transport = physics_flags['physics']
 		if self.transport == 'LBT':
@@ -100,11 +100,11 @@ cdef class event:
 
 		if self.transport == "LBT":
 			self.hqsample = HqEvo.HqEvo(options=physics_flags,		
-										table_folder=table_folder, refresh_table=False)
+										table_folder=table_folder, refresh_table=refresh_table)
 		elif self.transport == "LGV":
 			self.deltat_lrf = physics_flags['dt_lrf']
 			self.hqsample = HqLGV.HqLGV(options=physics_flags,
-										table_folder=table_folder, refresh_table=False) 
+										table_folder=table_folder, refresh_table=refresh_table) 
 	cpdef sys_time(self) :
 		return self.tau
 
@@ -149,6 +149,7 @@ cdef class event:
 				deref(it).freezeout = False
 				deref(it).initp = deref(it).p
 				deref(it).vcell = [0., 0., 0.]
+				deref(it).Tf = 0.
 				deref(it).pid = 4*np.random.choice([1, -1])
 				# free streaming to hydro starting time
 				freetime = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
@@ -176,8 +177,9 @@ cdef class event:
 				deref(it).Nc = 0; deref(it).Nc2 = 0
 				deref(it).count22 = 0; deref(it).count23 = 0; deref(it).count32 = 0
 				deref(it).freezeout = False
-				deref(it).initp = deref(it).p
+				deref(it).initp = [sqrt(p**2+self.M**2), p*sinpz*cos(phipt), p*sinpz*sin(phipt), p*cospz]		   
 				deref(it).vcell = [0., 0., 0.]
+				deref(it).Tf = 0.
 				deref(it).pid = 4*np.random.choice([1, -1])
 				x = rand()*L*2./RAND_MAX - L
 				y = rand()*L*2./RAND_MAX - L
@@ -238,6 +240,7 @@ cdef class event:
 		T, vcell[0], vcell[1], vcell[2] = self.hydro_reader.interpF(tauQ, deref(it).x, ['Temp', 'Vx', 'Vy', 'Vz'])
 		if T <= self.Tc:
 			deref(it).freezeout = True
+			deref(it).Tf = T
 			deref(it).vcell = vcell
 			return 
 		
@@ -418,7 +421,7 @@ cdef class event:
 			while it != self.active_HQ.end():
 				f.write(line.write([i, deref(it).pid, 
 					deref(it).p[1],deref(it).p[2],deref(it).p[3],deref(it).p[0], 						self.M, 
-					deref(it).x[1],deref(it).x[2],deref(it).x[3],deref(it).x[0], 						self.Tc, 
+					deref(it).x[1],deref(it).x[2],deref(it).x[3],deref(it).x[0], 						deref(it).Tf, 
 					deref(it).vcell[0], deref(it).vcell[1], deref(it).vcell[2],
 					 deref(it).initp[1],deref(it).initp[2],deref(it).initp[3], 
 					1.])+'\n')
