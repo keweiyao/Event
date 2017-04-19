@@ -154,8 +154,7 @@ cdef class event:
 				# free streaming to hydro starting time
 				freetime = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
 				x, y = HQ_xy_sampler.sample_xy()
-				z = 0.
-				deref(it).x = [0.0, x, y, z]
+				deref(it).x = [0.0, x, y, 0.]
 				deref(it).t_last = freetime; deref(it).t_last2 = freetime
 				freestream(it, freetime)
 				inc(it)
@@ -215,6 +214,7 @@ cdef class event:
 				if deref(it).freezeout == False:
 					t, x, y, z = deref(it).x
 					tauQ = sqrt(t**2 - z**2)
+					
 					while tauQ <= self.tau:
 						self.perform_HQ_step(it)
 						if deref(it).freezeout:
@@ -238,11 +238,6 @@ cdef class event:
 		tauQ = sqrt(t**2 - z**2)
 		vcell.resize(3)
 		T, vcell[0], vcell[1], vcell[2] = self.hydro_reader.interpF(tauQ, deref(it).x, ['Temp', 'Vx', 'Vy', 'Vz'])
-		if T <= self.Tc:
-			deref(it).freezeout = True
-			deref(it).Tf = T
-			deref(it).vcell = vcell
-			return 
 		
 		vabs2 = vcell[0]**2 + vcell[1]**2 + vcell[2]**2
 		if vabs2 >= little_below_one**2:
@@ -250,11 +245,17 @@ cdef class event:
 			vcell[0] *= scale
 			vcell[1] *= scale
 			vcell[2] *= scale
-		
+
+		if T <= self.Tc:
+			deref(it).freezeout = True
+			deref(it).Tf = T
+			deref(it).vcell = vcell
+			return
+
 		if self.transport == 'LBT':
-			t_elapse_lab = (t - deref(it).t_last)/(deref(it).Nc + 1.) / GeVm1_to_fmc	# convert to GeV-1
-			t_elapse_lab2 = (t - deref(it).t_last2)/(deref(it).Nc2 + 1.) / GeVm1_to_fmc # convert to GeV-1
-			channel, dtHQ, pnew = self.update_HQ_LBT(deref(it).p, vcell, T, t_elapse_lab, t_elapse_lab2)		      
+			t_elapse_lab = (t - deref(it).t_last)/(deref(it).Nc + 1.) / GeVm1_to_fmc * self.lambda_rescale	# convert to GeV-1
+			t_elapse_lab2 = (t - deref(it).t_last2)/(deref(it).Nc2 + 1.) / GeVm1_to_fmc * self.lambda_rescale # convert to GeV-1
+			channel, dtHQ, pnew = self.update_HQ_LBT(deref(it).p, vcell, T, t_elapse_lab, t_elapse_lab2)	      
 			dtHQ *= GeVm1_to_fmc   # convert back to fm/c 
 			if channel == 0 or channel == 1:
 				deref(it).Nc += 1
@@ -280,8 +281,8 @@ cdef class event:
 			deref(it).p = pnew
 			# for Langevin transport, the time dtHQ is already in fm/c unit 
 		else:
-			pass
-			#raise ValueError("Transport mode not recongized.")
+			raise ValueError("Transport mode not recongized.")
+			return
 
 	cdef (int, double, vector[double]) update_HQ_LGV(self, vector[double] p1_lab, vector[double] v3cell, double Temp) :
 		cdef vector[double] p1_cell, p1_cell_Z_new, p1_cell_new 
@@ -297,6 +298,7 @@ cdef class event:
 		cdef double dt_cell = self.deltat_lrf
 		cdef double dtHQ = p1_lab[0]/p1_cell[0] * dt_cell
 
+
 		cdef int channel = 10  #? need to change this, reserve a spectial number for Langevin transport
 		return channel, dtHQ, pnew
 
@@ -306,14 +308,14 @@ cdef class event:
 	cdef (int, double, vector[double]) update_HQ_LBT(self, vector[double] p1_lab, vector[double] v3cell, double Temp, double mean_dt23_lab, double mean_dt32_lab) :
 		# Define local variables
 		cdef double s, L1, L2, Lk, x2, xk, a1=0.6, a2=0.6
-		cdef double dt_cell
+		cdef double dt_cell, dt23_com
 		cdef size_t i=0
 		cdef int channel
 		cdef vector[double] p1_cell, p1_cell_Z, p1_com, \
 			 p1_com_Z_new, p1_com_new, \
 			 p1_cell_Z_new, p1_cell_new,\
 			 pnew, fs, Pcom,	 \
-			 dx23_cell, dx32_cell, dx23_com, \
+			 dx23_cell, dx32_cell, \
 			 v3com, pbuffer
 
 		# Boost p1 (lab) to p1 (cell)
@@ -327,7 +329,7 @@ cdef class event:
 			dx32_cell[i] = p1_cell[i]/p1_lab[0]*mean_dt32_lab
 
 		# Sample channel in cell, return channl index and evolution time seen from cell
-		channel, dt_cell = self.hqsample.sample_channel(p1_cell[0], Temp, dx23_cell[0]*self.lambda_rescale, dx32_cell[0]*self.lambda_rescale)
+		channel, dt_cell = self.hqsample.sample_channel(p1_cell[0], Temp, dx23_cell[0], dx32_cell[0])
 		# Boost evolution time back to lab frame
 		cdef double dtHQ = p1_lab[0]/p1_cell[0]*dt_cell
 		
@@ -337,9 +339,8 @@ cdef class event:
 		else:
 			# Sample initial state and return initial state particle four vectors 
 			# Imagine rotate p1_cell to align with z-direction, construct p2_cell_align, ...				
-			self.hqsample.sample_initial(channel, p1_cell[0], Temp, dx23_cell[0]*self.lambda_rescale, dx32_cell[0]*self.lambda_rescale)
+			self.hqsample.sample_initial(channel, p1_cell[0], Temp, dx23_cell[0], dx32_cell[0])
 			p1_cell_Z = self.hqsample.IS[0]
-
 			# Center of mass frame of p1_cell_align and other particles, and take down orientation of p1_com
 			Pcom.resize(4)
 			for i in range(4):
@@ -354,7 +355,7 @@ cdef class event:
 				v3com[i] = Pcom[i+1]/Pcom[0];
 
 			boost4_By3(p1_com, p1_cell_Z, v3com)
-			if channel >= 4: # for 3 -> 2 kinetics
+			if channel > 3: # channel=4,5 for 3 -> 2 kinetics
 				L1 = sqrt(p1_com[0]**2 - self.M**2)
 				boost4_By3(pbuffer, self.hqsample.IS[1], v3com)
 				L2 = pbuffer[0]
@@ -364,14 +365,10 @@ cdef class event:
 				xk = Lk/(L1+L2+Lk)
 				a1 = x2 + xk; 
 				a2 = (x2 - xk)/(1. - a1)
-		
-			dx23_com.resize(4)
-			for i in range(4):
-				dx23_com[i] = p1_com[i]/p1_cell_Z[0]*dx23_cell[0]
+			dt23_com = p1_com[0]/p1_cell_Z[0]*dx23_cell[0]
 
 			# Sample final state momentum in Com frame, with incoming paticles on z-axis
-			self.hqsample.sample_final(channel, s, Temp, dx23_com[0], a1, a2)
-
+			self.hqsample.sample_final(channel, s, Temp, dt23_com, a1, a2)
 			p1_com_Z_new = self.hqsample.FS[0]
 			# Rotate final states back to original Com frame (not z-axis aligened)
 			rotate_back_from_D(p1_com_new, p1_com_Z_new, p1_com[1], p1_com[2], p1_com[3])
@@ -381,8 +378,8 @@ cdef class event:
 			rotate_back_from_D(p1_cell_new, p1_cell_Z_new, p1_cell[1], p1_cell[2], p1_cell[3])
 			# boost back to lab frame
 			boost4_By3_back(pnew, p1_cell_new, v3cell)
-		# return updated momentum of heavy quark
-			
+
+		# return updated momentum of heavy quark	
 		return channel, dtHQ, pnew
 
 	cpdef HQ_hist(self):
