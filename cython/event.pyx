@@ -150,7 +150,7 @@ cdef class event:
 				deref(it).initp = deref(it).p
 				deref(it).vcell = [0., 0., 0.]
 				deref(it).Tf = 0.
-				deref(it).pid = 4*np.random.choice([1, -1])
+				deref(it).pid = 4#*np.random.choice([1, -1])
 				# free streaming to hydro starting time
 				freetime = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
 				x, y = HQ_xy_sampler.sample_xy()
