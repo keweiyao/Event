@@ -79,32 +79,32 @@ cdef class event:
 	cdef double tau0, dtau, tau
 	cdef double deltat_lrf
 	cdef double Tc
-	cdef double lambda_rescale, Kfactor
+	cdef double lambda_rescale
 
-	def __cinit__(self, medium_flags, physics_flags, Tc=0.154, table_folder='./tables', refresh_table=False):
+	def __cinit__(self, medium_flags, physics_flags, table_folder='./tables', refresh_table=False):
+		# medium
 		self.mode = medium_flags['type']
-		self.transport = physics_flags['physics']
-		if self.transport == 'LBT':
-			self.Kfactor = physics_flags['Kfactor']
-			self.lambda_rescale = physics_flags['lambda_rescale']
-		else:
-			self.Kfactor = 1.
-			self.lambda_rescale = 1.
-		self.M = physics_flags['mass']
 		self.hydro_reader = medium.Medium(medium_flags=medium_flags)
 		self.tau0 = self.hydro_reader.init_tau()
 		self.dtau = self.hydro_reader.dtau()
 		self.tau = self.tau0
-		self.Tc = Tc
 		
-
+		# transport
+		self.transport = physics_flags['transport']['name']
+		self.Tc = physics_flags['Tc']
+		self.M = physics_flags['mass']
 		if self.transport == "LBT":
+			print "model is LBT"
+			self.lambda_rescale = physics_flags['transport']['lambda_rescale']
 			self.hqsample = HqEvo.HqEvo(options=physics_flags,		
-										table_folder=table_folder, refresh_table=refresh_table)
+										table_folder=table_folder,
+										refresh_table=refresh_table)
 		elif self.transport == "LGV":
-			self.deltat_lrf = physics_flags['dt_lrf']
+			print "model is LGV"
+			self.deltat_lrf = physics_flags['transport']['dt_lrf']
 			self.hqsample = HqLGV.HqLGV(options=physics_flags,
-										table_folder=table_folder, refresh_table=refresh_table) 
+										table_folder=table_folder, 
+										refresh_table=refresh_table) 
 	cpdef sys_time(self) :
 		return self.tau
 
@@ -417,11 +417,15 @@ cdef class event:
 			line = ff.FortranRecordWriter('i10,2x,i10,17(2x,d12.6)')
 			while it != self.active_HQ.end():
 				f.write(line.write([i, deref(it).pid, 
-					deref(it).p[1],deref(it).p[2],deref(it).p[3],deref(it).p[0], 						self.M, 
-					deref(it).x[1],deref(it).x[2],deref(it).x[3],deref(it).x[0], 						deref(it).Tf, 
+					deref(it).p[1],deref(it).p[2],
+					deref(it).p[3],deref(it).p[0], 				
+					self.M, 
+					deref(it).x[1],deref(it).x[2],
+					deref(it).x[3],deref(it).x[0], 				
+					deref(it).Tf, 
 					deref(it).vcell[0], deref(it).vcell[1], deref(it).vcell[2],
-					 deref(it).initp[1],deref(it).initp[2],deref(it).initp[3], 
-					1.])+'\n')
+					deref(it).initp[1],deref(it).initp[2],
+					deref(it).initp[3],deref(it).initp[0]])+'\n')
 				i += 1
 				inc(it)
 		return
