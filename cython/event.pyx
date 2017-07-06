@@ -33,15 +33,16 @@ cdef extern from "../src/utility.h":
 		int count22, count23, count32
 		vector[double] initp
 		vector[double] vcell
-		double weight, Tf
+		double Tf, s1, s2
 		int pid
 
 #-----------Production vertex sampler class-------------------------
 cdef class XY_sampler:
 	cdef np.ndarray Taa, IntTaa
-	cdef double dxy
+	cdef double dxy, b
 	cdef size_t Nx, Ny
-	def __cinit__(self, Taa, dxy):
+	def __cinit__(self, Taa, dxy, b):
+		self.b = b
 		self.dxy = dxy
 		self.Nx, self.Ny = Taa.shape
 		self.Taa = Taa.reshape(-1)
@@ -56,10 +57,14 @@ cdef class XY_sampler:
 		cdef int index = np.searchsorted(self.IntTaa, r)
 		cdef double nx = np.floor((index-1.)/self.Ny)
 		cdef double ny = index - 1 - nx*self.Ny	 
+		cdef double x, y, s1, s2
 		nx += np.random.rand()
 		ny += np.random.rand()
 		# to be examined
-		return (nx - self.Nx/2.)*self.dxy, (ny - self.Ny/2.)*self.dxy
+		x, y = (nx - self.Nx/2.)*self.dxy, (ny - self.Ny/2.)*self.dxy
+		s1 = sqrt(y**2 + (x+self.b/2.)**2)
+		s2 = sqrt(y**2 + (x-self.b/2.)**2)
+		return x, y, s1, s2
 		
 #-----------Event Class---------------------------------------------
 cdef void freestream(vector[particle].iterator it, double dt):
@@ -111,7 +116,7 @@ cdef class event:
 	cpdef initialize_HQ(self, NQ, init_flags):
 		self.active_HQ.clear()
 		self.active_HQ.resize(NQ)
-		cdef double x, y, z
+		cdef double x, y, z, s1, s2
 		# for A+B:
 		cdef double pT, phipt, rapidity, mT, freetime
 		cdef double ymin, ymax, pTmax, pTmin, alpha
@@ -122,7 +127,9 @@ cdef class event:
 
 		if init_flags['type'] == 'A+B':   
 			print "Initialize for dynamic medium"
-			HQ_xy_sampler = XY_sampler(init_flags['TAB'], init_flags['dxy'])
+			HQ_xy_sampler = XY_sampler(init_flags['TAB'], 
+									   init_flags['dxy'],
+									   init_flags['b'])
 			pTmax = init_flags['pTmax']
 			pTmin = init_flags['pTmin']
 			ymax = init_flags['ymax']
@@ -153,11 +160,22 @@ cdef class event:
 				deref(it).pid = 4#*np.random.choice([1, -1])
 				# free streaming to hydro starting time
 				freetime = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
-				x, y = HQ_xy_sampler.sample_xy()
+				x, y, s1, s2 = HQ_xy_sampler.sample_xy()
 				deref(it).x = [0.0, x, y, 0.]
+				deref(it).s1 = s1
+				deref(it).s2 = s2
 				deref(it).t_last = freetime; deref(it).t_last2 = freetime
 				freestream(it, freetime)
 				inc(it)
+			# check
+			X = []
+			Y = []
+			it = self.active_HQ.begin()
+			while it != self.active_HQ.end():
+				X.append(deref(it).x[1])
+				Y.append(deref(it).x[2])
+				inc(it)
+			print "rms: x, y = ", np.std(X), np.std(Y)
 
 		if init_flags['type'] == 'box':
 			print "Initialize for box simulation"
@@ -414,7 +432,7 @@ cdef class event:
 			f.write(head3.write(['lbt', '1.0alpha', 208, 82, 208, 82, 'aacm', 1380, 1])+'\n')
 			eventhead = ff.FortranRecordWriter('i10,2x,i10,2x,f8.3,2x,f8.3,2x,i4,2x,i4,2X,i7')
 			f.write(eventhead.write([1, self.active_HQ.size(), 0.001, 0.001, 1, 1, 1])+'\n')
-			line = ff.FortranRecordWriter('i10,2x,i10,17(2x,d12.6)')
+			line = ff.FortranRecordWriter('i10,2x,i10,19(2x,d12.6)')
 			while it != self.active_HQ.end():
 				f.write(line.write([i, deref(it).pid, 
 					deref(it).p[1],deref(it).p[2],
@@ -424,8 +442,9 @@ cdef class event:
 					deref(it).x[3],deref(it).x[0], 				
 					deref(it).Tf, 
 					deref(it).vcell[0], deref(it).vcell[1], deref(it).vcell[2],
-					deref(it).initp[1],deref(it).initp[2],
-					deref(it).initp[3],deref(it).initp[0]])+'\n')
+					deref(it).initp[1], deref(it).initp[2],
+					deref(it).initp[3], deref(it).initp[0],
+					deref(it).s1, deref(it).s2])+'\n')
 				i += 1
 				inc(it)
 		return
