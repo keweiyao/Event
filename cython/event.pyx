@@ -157,7 +157,7 @@ cdef class event:
 				deref(it).initp = deref(it).p
 				deref(it).vcell = [0., 0., 0.]
 				deref(it).Tf = 0.
-				deref(it).pid = 4#*np.random.choice([1, -1])
+				deref(it).pid = 4
 				# free streaming to hydro starting time
 				freetime = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
 				x, y, s1, s2 = HQ_xy_sampler.sample_xy()
@@ -167,15 +167,6 @@ cdef class event:
 				deref(it).t_last = freetime; deref(it).t_last2 = freetime
 				freestream(it, freetime)
 				inc(it)
-			# check
-			X = []
-			Y = []
-			it = self.active_HQ.begin()
-			while it != self.active_HQ.end():
-				X.append(deref(it).x[1])
-				Y.append(deref(it).x[2])
-				inc(it)
-			print "rms: x, y = ", np.std(X), np.std(Y)
 
 		if init_flags['type'] == 'box':
 			print "Initialize for box simulation"
@@ -366,7 +357,7 @@ cdef class event:
 			for pp in self.hqsample.IS:
 				for i in range(4):
 					Pcom[i] += pp[i]
-			s = product4(Pcom, Pcom)
+			s = Pcom[0]**2 - Pcom[1]**2 - Pcom[2]**2 - Pcom[3]**2
 		
 			v3com.resize(3); 
 			for i in range(3):
