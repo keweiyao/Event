@@ -262,24 +262,18 @@ cdef class event:
 			return
 
 		if self.transport == 'LBT':
-			t_elapse_lab = (t - deref(it).t_last)/(deref(it).Nc + 1.) / GeVm1_to_fmc * self.lambda_rescale	# convert to GeV-1
-			t_elapse_lab2 = (t - deref(it).t_last2)/(deref(it).Nc2 + 1.) / GeVm1_to_fmc * self.lambda_rescale # convert to GeV-1
+			t_elapse_lab = (t - deref(it).t_last)/ GeVm1_to_fmc * self.lambda_rescale	# convert to GeV-1
+			t_elapse_lab2 = (t - deref(it).t_last2)/ GeVm1_to_fmc * self.lambda_rescale # convert to GeV-1
 			channel, dtHQ, pnew = self.update_HQ_LBT(deref(it).p, vcell, T, t_elapse_lab, t_elapse_lab2)	      
-			dtHQ *= GeVm1_to_fmc   # convert back to fm/c 
+			dtHQ *= GeVm1_to_fmc   # convert back to fm/c 	
 			if channel == 0 or channel == 1:
-				deref(it).Nc += 1
-				deref(it).Nc2 += 1
 				deref(it).count22 += 1
 			elif channel == 2 or channel == 3:
-				deref(it).Nc = 0
-				deref(it).Nc2 += 1
-				deref(it).t_last = t + dtHQ
 				deref(it).count23 += 1
-			elif channel == 4 or channel == 5:
-				deref(it).Nc2 = 0
-				deref(it).Nc += 1
-				deref(it).t_last2 = t + dtHQ
+				deref(it).t_last = t + dtHQ
+			elif channel == 4 or channel == 5:				
 				deref(it).count32 += 1
+				deref(it).t_last2 = t + dtHQ
 			else:
 				pass
 			freestream(it, dtHQ)
@@ -449,6 +443,14 @@ cdef class event:
 			py = deref(it).p[2]*ratio 
 			pz = deref(it).p[3]*ratio 
 			deref(it).p = [E0, px, py, pz]
+			inc(it)
+
+	cpdef reset_HQ_time(self):
+		cdef vector[particle].iterator it = self.active_HQ.begin()
+		while it != self.active_HQ.end():
+			deref(it).x[0] = 0.
+			deref(it).t_last = 0.
+			deref(it).t_last2 = 0.
 			inc(it)
 
 	cpdef get_hydro_field(self, key):
