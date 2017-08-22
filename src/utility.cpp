@@ -81,6 +81,24 @@ void boost4_By3(std::vector<double> & Ap, std::vector<double> const& A, std::vec
 	Ap[3] = -gammaA0*v[2] + A[3] + nz*gb_vecn_dot_vecA;
 }
 
+void boost4_By3_back(std::vector<double> & Ap, std::vector<double> const& A, std::vector<double> const& va){
+	double v[3];
+	v[0] = -va[0]; v[1] = -va[1]; v[2] = -va[2];
+        double v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
+        double absv = std::sqrt(v2)+1e-32;
+        double nx = v[0]/absv, ny = v[1]/absv, nz = v[2]/absv;
+        double gamma = 1./sqrt(1. - v2 + 1e-32);
+        double gb = gamma - 1.;
+        double gb_vecn_dot_vecA = gb*(nx*A[1] + ny*A[2] + nz*A[3]);
+        double gammaA0 = gamma*A[0];
+        Ap.resize(4);
+        Ap[0] = gamma*(A[0] - v[0]*A[1] - v[1]*A[2] - v[2]*A[3]);
+        Ap[1] = -gammaA0*v[0] + A[1] + nx*gb_vecn_dot_vecA;
+        Ap[2] = -gammaA0*v[1] + A[2] + ny*gb_vecn_dot_vecA;
+        Ap[3] = -gammaA0*v[2] + A[3] + nz*gb_vecn_dot_vecA;
+}
+
+/*
 void boost4_By3_back(std::vector<double> & Ap, std::vector<double> const& A, std::vector<double> const& v){
 	double v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
 	double absv = std::sqrt(v2)+1e-32;
@@ -94,7 +112,7 @@ void boost4_By3_back(std::vector<double> & Ap, std::vector<double> const& A, std
 	Ap[1] = gammaA0*v[0] + A[1] + nx*gb_vecn_dot_vecA;
 	Ap[2] = gammaA0*v[1] + A[2] + ny*gb_vecn_dot_vecA;
 	Ap[3] = gammaA0*v[2] + A[3] + nz*gb_vecn_dot_vecA;
-}
+}*/
 
 // This boost operation takes 4 velocity (u0, u1, u2, u3 of the new frame relative to the old frame)
 // And returns the A vector by its components in the new frame.

@@ -74,6 +74,8 @@ cdef void freestream(vector[particle].iterator it, double dt):
 	deref(it).x[2] = deref(it).x[2] + deref(it).p[2]*da
 	deref(it).x[3] = deref(it).x[3] + deref(it).p[3]*da
 
+cdef double proper_time(vector[double] x):
+	return sqrt(x[0]**2 - x[3]**2)
 
 cdef class event:
 	cdef object hydro_reader, hqsample
@@ -119,7 +121,7 @@ cdef class event:
 		cdef double x, y, z, s1, s2
 		# for A+B:
 		cdef double pT, phipt, rapidity, mT, freetime
-		cdef double ymin, ymax, pTmax, pTmin, alpha
+		cdef double ymin, ymax, pTmax, pTmin
 		# for box:
 		cdef double p, cospz, sinpz
 		cdef double pmax, L
@@ -134,16 +136,13 @@ cdef class event:
 			pTmin = init_flags['pTmin']
 			ymax = init_flags['ymax']
 			ymin = init_flags['ymin']
-			alpha = init_flags['sample power']
+			
 			print "Heavy quark will be free streamed to the starting time of hydro"
 			it = self.active_HQ.begin()
+			X = []
+			Y = []
 			while it != self.active_HQ.end():
-				pT = -1.
-				while pT < pTmin or pT > pTmax:
-					if alpha > 0.:
-						pT = (rand()*1./RAND_MAX)**alpha*(pTmax)
-					if alpha < 0.:
-						pT = (rand()*1./RAND_MAX)**alpha*(pTmin)
+				pT = (rand()*1./RAND_MAX)*(pTmax-pTmin) + pTmin
 				mT = sqrt(pT**2 + self.M**2)
 				phipt = rand()*2.*M_PI/RAND_MAX
 				rapidity = rand()*(ymax-ymin)/RAND_MAX + ymin
@@ -161,12 +160,16 @@ cdef class event:
 				# free streaming to hydro starting time
 				freetime = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
 				x, y, s1, s2 = HQ_xy_sampler.sample_xy()
+				X.append(x)
+				Y.append(y)
 				deref(it).x = [0.0, x, y, 0.]
 				deref(it).s1 = s1
 				deref(it).s2 = s2
-				deref(it).t_last = freetime; deref(it).t_last2 = freetime
+				deref(it).t_last = freetime; 
+				deref(it).t_last2 = freetime;
 				freestream(it, freetime)
 				inc(it)
+			print("<x^2>, <y^2> = ", np.std(X)**2, np.std(Y)**2)
 
 		if init_flags['type'] == 'box':
 			print "Initialize for box simulation"
@@ -220,16 +223,11 @@ cdef class event:
 		elif self.mode == 'dynamic':
 			it = self.active_HQ.begin()
 			while it != self.active_HQ.end():
-				if deref(it).freezeout == False:
-					t, x, y, z = deref(it).x
-					tauQ = sqrt(t**2 - z**2)
-					
-					while tauQ <= self.tau:
+				if not deref(it).freezeout:
+					tauQ = proper_time( deref(it).x )
+					while tauQ <= self.tau and not deref(it).freezeout:
 						self.perform_HQ_step(it)
-						if deref(it).freezeout:
-							break
-						t, x, y, z = deref(it).x
-						tauQ = sqrt(t**2 - z**2)
+						tauQ = proper_time( deref(it).x )
 				inc(it)
 		else:
 			raise ValueError("Mode not implemented")
@@ -237,17 +235,17 @@ cdef class event:
 
 	cdef perform_HQ_step(self, vector[particle].iterator it): 
 		PyErr_CheckSignals()
-		cdef double t, x, y, z, tauQ, T, vabs2, vabs
+		cdef double t, tauQ, T, vabs2, vabs
 		cdef double t_elapse_lab, t_elapse_lab2
 		cdef double dtHQ
 		cdef vector[double] pnew, vcell
 		cdef int channel
 		
-		t, x, y, z = deref(it).x
-		tauQ = sqrt(t**2 - z**2)
+
+		t = deref(it).x[0]
+		tauQ = proper_time( deref(it).x )
 		vcell.resize(3)
 		T, vcell[0], vcell[1], vcell[2] = self.hydro_reader.interpF(tauQ, deref(it).x, ['Temp', 'Vx', 'Vy', 'Vz'])
-		
 		vabs2 = vcell[0]**2 + vcell[1]**2 + vcell[2]**2
 		if vabs2 >= little_below_one**2:
 			scale = 1.0/sqrt(vabs2)/little_above_one
@@ -271,7 +269,7 @@ cdef class event:
 			elif channel == 2 or channel == 3:
 				deref(it).count23 += 1
 				deref(it).t_last = t + dtHQ
-			elif channel == 4 or channel == 5:				
+			elif channel == 4 or channel == 5:
 				deref(it).count32 += 1
 				deref(it).t_last2 = t + dtHQ
 			else:
