@@ -350,13 +350,12 @@ cdef class event:
 				for i in range(4):
 					Pcom[i] += pp[i]
 			s = Pcom[0]**2 - Pcom[1]**2 - Pcom[2]**2 - Pcom[3]**2
-		
-			v3com.resize(3); 
+			v3com.resize(3)
 			for i in range(3):
 				v3com[i] = Pcom[i+1]/Pcom[0];
 
 			boost4_By3(p1_com, p1_cell_Z, v3com)
-			if channel > 3: # channel=4,5 for 3 -> 2 kinetics
+			if channel in [4,5]: # channel=4,5 for 3 -> 2 kinetics
 				L1 = sqrt(p1_com[0]**2 - self.M**2)
 				boost4_By3(pbuffer, self.hqsample.IS[1], v3com)
 				L2 = pbuffer[0]
@@ -446,9 +445,9 @@ cdef class event:
 	cpdef reset_HQ_time(self):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		while it != self.active_HQ.end():
-			deref(it).x[0] = 0.
-			deref(it).t_last = 0.
-			deref(it).t_last2 = 0.
+			deref(it).x[0] = self.tau
+			deref(it).t_last = self.tau
+			deref(it).t_last2 = self.tau
 			inc(it)
 
 	cpdef get_hydro_field(self, key):
