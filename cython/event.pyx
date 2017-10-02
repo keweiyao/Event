@@ -8,7 +8,7 @@ from cython.operator cimport dereference as deref, preincrement as inc
 from cpython.exc cimport PyErr_CheckSignals
 import numpy as np
 cimport numpy as np
-import sys
+import sys, h5py
 import fortranformat as ff
 
 
@@ -88,7 +88,9 @@ cdef class event:
 	cdef double Tc
 	cdef double lambda_rescale
 
-	def __cinit__(self, medium_flags, physics_flags, table_folder='./tables', refresh_table=False):
+	def __cinit__(self, medium_flags, physics_flags, table_folder='./tables', refresh_table=False, seed=None):
+		if seed != None:
+			np.random.seed(seed)
 		# medium
 		self.mode = medium_flags['type']
 		self.hydro_reader = medium.Medium(medium_flags=medium_flags)
@@ -142,10 +144,10 @@ cdef class event:
 			X = []
 			Y = []
 			while it != self.active_HQ.end():
-				pT = (rand()*1./RAND_MAX)*(pTmax-pTmin) + pTmin
+				pT = np.random.rand()*(pTmax-pTmin) + pTmin
 				mT = sqrt(pT**2 + self.M**2)
-				phipt = rand()*2.*M_PI/RAND_MAX
-				rapidity = rand()*(ymax-ymin)/RAND_MAX + ymin
+				phipt = np.random.rand()*2.*M_PI
+				rapidity = np.random.rand()*(ymax-ymin) + ymin
 				deref(it).p.resize(4)
 				deref(it).x.resize(4)
 				deref(it).p = [mT*cosh(rapidity), pT*cos(phipt), pT*sin(phipt), mT*sinh(rapidity)]
@@ -177,9 +179,9 @@ cdef class event:
 			L = init_flags['L']
 			it = self.active_HQ.begin()
 			while it != self.active_HQ.end():					  
-				p = pow(rand()*1./RAND_MAX, 1./3.)*pmax
-				phipt = rand()*2.*M_PI/RAND_MAX
-				cospz = little_below_one*(rand()*2./RAND_MAX-1.)
+				p = pow(np.random.rand(), 1./3.)*pmax
+				phipt = 2.*np.pi*np.random.rand()
+				cospz = little_below_one*(2.*np.random.rand()-1.)
 				sinpz = sqrt(1.-cospz**2)
 				deref(it).p.resize(4)
 				deref(it).x.resize(4)
@@ -192,9 +194,7 @@ cdef class event:
 				deref(it).vcell = [0., 0., 0.]
 				deref(it).Tf = 0.
 				deref(it).pid = 4*np.random.choice([1, -1])
-				x = rand()*L*2./RAND_MAX - L
-				y = rand()*L*2./RAND_MAX - L
-				z = rand()*L*2./RAND_MAX - L
+				x, y, z = L*2.*np.random.rand(3) - L
 				deref(it).x = [0.0, x, y, z]
 				inc(it) 
 
@@ -402,21 +402,21 @@ cdef class event:
 			inc(it)
 		return np.array(pT)
 
-
 	cpdef output_oscar(self, filename):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		cdef size_t i=0
 		with open(filename, 'w') as f:
-			head3 = ff.FortranRecordWriter(
-				'2(a8,2x),1x,i3,1x,i6,3x,i3,1x,i6,3x,a4,2x,e10.4,2x,i8')
-			f.write('OSC1997A\n')
-			f.write('final_id_p_x\n')
-			f.write(head3.write(['lbt', '1.0alpha', 208, 82, 208, 82, 'aacm', 1380, 1])+'\n')
-			eventhead = ff.FortranRecordWriter('i10,2x,i10,2x,f8.3,2x,f8.3,2x,i4,2x,i4,2X,i7')
-			f.write(eventhead.write([1, self.active_HQ.size(), 0.001, 0.001, 1, 1, 1])+'\n')
-			line = ff.FortranRecordWriter('i10,2x,i10,19(2x,d12.6)')
+			#head3 = ff.FortranRecordWriter(
+			#	'2(a8,2x),1x,i3,1x,i6,3x,i3,1x,i6,3x,a4,2x,e10.4,2x,i8')
+			#f.write('OSC1997A\n')
+			#f.write('final_id_p_x\n')
+			#f.write(head3.write(['lbt', '1.0alpha', 208, 82, 208, 82, 'aacm', 1380, 1])+'\n')
+			#eventhead = ff.FortranRecordWriter('i10,2x,i10,2x,f8.3,2x,f8.3,2x,i4,2x,i4,2X,i7')
+			#f.write(eventhead.write([1, self.active_HQ.size(), 0.001, 0.001, 1, 1, 1])+'\n')
+			#line = ff.FortranRecordWriter('i10,2x,i10,19(2x,d12.6)')
+			line = ff.FortranRecordWriter('i10,19(2x,d12.6)')
 			while it != self.active_HQ.end():
-				f.write(line.write([i, deref(it).pid, 
+				f.write(line.write([deref(it).pid, 
 					deref(it).p[1],deref(it).p[2],
 					deref(it).p[3],deref(it).p[0], 				
 					self.M, 
@@ -429,7 +429,6 @@ cdef class event:
 					deref(it).s1, deref(it).s2])+'\n')
 				i += 1
 				inc(it)
-		return
 
 	cpdef reset_HQ_energy(self, E0=10.):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
