@@ -403,33 +403,6 @@ cdef class event:
 			inc(it)
 		return np.array(pT)
 
-	cpdef output_oscar(self, filename):
-		cdef vector[particle].iterator it = self.active_HQ.begin()
-		cdef size_t i=0
-		with open(filename, 'w') as f:
-			head3 = ff.FortranRecordWriter(
-				'2(a8,2x),1x,i3,1x,i6,3x,i3,1x,i6,3x,a4,2x,e10.4,2x,i8')
-			f.write('OSC1997A\n')
-			f.write('final_id_p_x\n')
-			f.write(head3.write(['lbt', '1.0alpha', 208, 82, 208, 82, 'aacm', 1380, 1])+'\n')
-			eventhead = ff.FortranRecordWriter('i10,2x,i10,2x,f8.3,2x,f8.3,2x,i4,2x,i4,2X,i7')
-			f.write(eventhead.write([1, self.active_HQ.size(), 0.001, 0.001, 1, 1, 1])+'\n')
-			line = ff.FortranRecordWriter('i10,2x,i10,19(2x,d12.6)')
-			while it != self.active_HQ.end():
-				f.write(line.write([i, deref(it).pid,
-					deref(it).p[1],deref(it).p[2],
-					deref(it).p[3],deref(it).p[0],
-					self.M,
-					deref(it).x[1],deref(it).x[2],
-					deref(it).x[3],deref(it).x[0],
-					deref(it).Tf,
-					deref(it).vcell[0], deref(it).vcell[1], deref(it).vcell[2],
-					deref(it).initp[1], deref(it).initp[2],
-					deref(it).initp[3], deref(it).initp[0],
-					deref(it).s1, deref(it).s2])+'\n')
-				i += 1
-				inc(it)
-
 	cpdef reset_HQ_energy(self, E0=10.):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		cdef double pabs_new, pabs_old, px, py, pz
