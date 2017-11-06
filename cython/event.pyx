@@ -8,7 +8,7 @@ from cython.operator cimport dereference as deref, preincrement as inc
 from cpython.exc cimport PyErr_CheckSignals
 import numpy as np
 cimport numpy as np
-import sys
+import sys, h5py
 import fortranformat as ff
 
 
@@ -88,7 +88,9 @@ cdef class event:
 	cdef double Tc
 	cdef double lambda_rescale
 
-	def __cinit__(self, medium_flags, physics_flags, table_folder='./tables', refresh_table=False):
+	def __cinit__(self, medium_flags, physics_flags, table_folder='./tables', refresh_table=False, seed=None):
+		if seed != None:
+			np.random.seed(seed)
 		# medium
 		self.mode = medium_flags['type']
 		self.hydro_reader = medium.Medium(medium_flags=medium_flags)
@@ -142,10 +144,10 @@ cdef class event:
 			X = []
 			Y = []
 			while it != self.active_HQ.end():
-				pT = (rand()*1./RAND_MAX)*(pTmax-pTmin) + pTmin
+				pT = np.random.rand()*(pTmax-pTmin) + pTmin
 				mT = sqrt(pT**2 + self.M**2)
-				phipt = rand()*2.*M_PI/RAND_MAX
-				rapidity = rand()*(ymax-ymin)/RAND_MAX + ymin
+				phipt = np.random.rand()*2.*M_PI
+				rapidity = np.random.rand()*(ymax-ymin) + ymin
 				deref(it).p.resize(4)
 				deref(it).x.resize(4)
 				deref(it).p = [mT*cosh(rapidity), pT*cos(phipt), pT*sin(phipt), mT*sinh(rapidity)]
@@ -176,6 +178,7 @@ cdef class event:
 			pmax = init_flags['pmax']
 			L = init_flags['L']
 			it = self.active_HQ.begin()
+
 			while it != self.active_HQ.end():
 				p = np.power(np.random.uniform(0, pmax), 1./3.)
 				phipt = np.random.uniform(0, 2.*np.pi)
@@ -400,7 +403,6 @@ cdef class event:
 			inc(it)
 		return np.array(pT)
 
-
 	cpdef output_oscar(self, filename):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
 		cdef size_t i=0
@@ -427,7 +429,6 @@ cdef class event:
 					deref(it).s1, deref(it).s2])+'\n')
 				i += 1
 				inc(it)
-		return
 
 	cpdef reset_HQ_energy(self, E0=10.):
 		cdef vector[particle].iterator it = self.active_HQ.begin()
