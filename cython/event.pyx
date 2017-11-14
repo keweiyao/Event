@@ -180,7 +180,7 @@ cdef class event:
 			it = self.active_HQ.begin()
 
 			while it != self.active_HQ.end():
-				p = np.power(np.random.uniform(0, pmax), 1./3.)
+				p = np.random.uniform(0, pmax)
 				phipt = np.random.uniform(0, 2.*np.pi)
 				cospz = little_below_one*np.random.uniform(-1., 1.)
 				sinpz = sqrt(1.-cospz**2)
