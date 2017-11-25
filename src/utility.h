@@ -45,8 +45,7 @@ struct particle{
 	bool freezeout;
 	std::vector<double> p;
 	std::vector<double> x;
-	double t_last, t_last2;
-	int Nc, Nc2;
+	double t_last_23, t_last_32;
 	int count22, count23, count32;
 	std::vector<double> initp;
 	std::vector<double> vcell;
