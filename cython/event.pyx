@@ -189,7 +189,7 @@ cdef class event:
 				deref(it).initp = deref(it).p
 				deref(it).vcell = [0., 0., 0.]
 				deref(it).Tf = 0.
-				deref(it).pid = 4
+				deref(it).pid = -4
 				inc(it)
 			# check the variance of the sampling
 			stdx, stdy = np.std(X), np.std(Y)
