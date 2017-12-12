@@ -12,6 +12,7 @@ cimport numpy as np
 import HqEvo
 import HqLGV
 import medium
+import fortranformat as ff
 
 cdef double GeVm1_to_fmc = 0.197
 cdef double little_below_one = 1. - 1e-6
