@@ -121,7 +121,7 @@ cdef class event:
 		cdef double x, y, z, s1, s2
 		# for A+B:
 		cdef double pT, phipt, rapidity, mT, t0
-		cdef double ymin, ymax, pTmax, pTmin
+		cdef double ymax, pTmax, pTmin
 		# for box:
 		cdef double p, cospz, sinpz
 		cdef double pmax, L
@@ -516,11 +516,11 @@ cdef class event:
 
 
 	cpdef output_oscar(self, filename):
-		cdef vector[particle].iterator it = self.active_HQ.begin()
+		cdef vector[particle].iterator it = self.HQ_list.begin()
 		cdef size_t i=0
 		with open(filename, 'w') as f:
 			line = ff.FortranRecordWriter('i10,19(2x,d12.6)')
-			while it != self.active_HQ.end():
+			while it != self.HQ_list.end():
 				f.write(line.write([deref(it).pid,
 					deref(it).p[1],deref(it).p[2],
 					deref(it).p[3],deref(it).p[0],
