@@ -4,22 +4,28 @@ from libcpp.vector cimport vector
 from libcpp.string cimport string
 from libc.stdlib cimport rand, RAND_MAX
 from libc.math cimport *
+from libc.stdlib cimport malloc, free
 from cython.operator cimport dereference as deref, preincrement as inc
 from cpython.exc cimport PyErr_CheckSignals
 import numpy as np
 cimport numpy as np
+import h5py
 
-import HqEvo
-import HqLGV
-import medium
+import HqEvo, HqLGV
 import fortranformat as ff
 
 cdef double GeVm1_to_fmc = 0.197
 cdef double little_below_one = 1. - 1e-6
 cdef double little_above_one = 1. + 1e-6		
 
-#-----------Particle data struct------------------------------------
+
+#------------Import c++ utility function for rotation and transformation-----------
 cdef extern from "../src/utility.h":
+	cdef double product4(const vector[double] & A, const vector[double] & B) 
+	cdef void  rotate_back_from_D(vector[double] & Ap, const vector[double] & A, double & Dx, double & Dy, double & Dz) 
+	cdef void  boost4_By3(vector[double] & Ap, const vector[double] & A, const vector[double] & v) 
+	cdef void  boost4_By3_back(vector[double] & Ap, const vector[double] & A, const vector[double] & v) 
+	# Particle data struct
 	cdef struct particle:
 		bool freezeout
 		vector[double] p
@@ -29,6 +35,152 @@ cdef extern from "../src/utility.h":
 		vector[double] vcell
 		double Tf, s1, s2
 		int pid
+
+#-----------Hydro reader class--------------------------------------
+cdef inline double finterp(double *** c, double rx, double ry, double rz):
+	cdef double result = 0.0
+	cdef size_t i, j, k
+	cdef double vx[2]
+	vx[0] = 1. - rx; vx[1] = rx
+	cdef double vy[2]
+	vy[0] = 1. - ry; vy[1] = ry
+	cdef double vz[2]
+	vz[0] = 1. - rz; vz[1] = rz
+	for i in range(2):
+		for j in range(2):
+			for k in range(2):
+				result += c[i][j][k]*vx[i]*vy[j]*vz[k]
+	return result
+
+cdef class Medium:
+	cdef object _f, _step_keys, info_keys, static_property, _tabs
+	cdef str _mode
+	cdef public size_t _Nx, _Ny, _step_key_index
+	cdef public double _dx, _dy, _xmin, _ymin, _xmax, _ymax, _tstart, _dt, _tnow
+	cdef double T_static
+	cdef double *** interpcube
+	cdef bool status
+
+	def __cinit__(self, medium_flags):
+		self._mode = medium_flags['type']
+
+		if self._mode == 'static':
+			print "works in static meidum mode!"
+			print "Medium property can be specified step by step"
+			self._Nx = 0
+			self._Ny = 0
+			self._dx = 0.
+			self._dy = 0.
+			self._tstart = 0.0
+			self._dt = medium_flags['static_dt']
+			self._xmin = 0.
+			self._xmax = 0.
+			self._ymin = 0.
+			self._ymax = 0.
+			self._tnow = self._tstart - self._dt
+			self.status = True
+		elif self._mode == 'dynamic':
+			hydrofilename = medium_flags['hydrofile']
+			if hydrofilename == None:
+				raise ValueError("Need hydro history file")
+			else:
+				self._f = h5py.File(hydrofilename, 'r')
+
+			self._step_keys = list(self._f['Event'].keys())
+			self._step_key_index = 0
+			self.status = True
+			self.info_keys = self._f['Event'][self._step_keys[0]].keys()
+			self._Nx = self._f['Event'].attrs['XH'] - self._f['Event'].attrs['XL'] + 1
+			self._Ny = self._f['Event'].attrs['YH'] - self._f['Event'].attrs['YL'] + 1
+			self._dx = self._f['Event'].attrs['DX']
+			self._dy = self._f['Event'].attrs['DY']
+			self._tstart = self._f['Event'].attrs['Tau0']
+			self._dt = self._f['Event'].attrs['dTau']
+			self._xmin = self._f['Event'].attrs['XL']*self._dx
+			self._xmax = self._f['Event'].attrs['XH']*self._dx
+			self._ymin = self._f['Event'].attrs['YL']*self._dy
+			self._ymax = self._f['Event'].attrs['YH']*self._dy
+			self._tnow = self._tstart - self._dt
+
+			self.interpcube = <double ***> malloc(2*sizeof(double**))
+			for i in range(2):
+				self.interpcube[i] = <double **> malloc(2*sizeof(double*))
+				for j in range(2):
+					self.interpcube[i][j] = <double *> malloc(2*sizeof(double))
+		else:
+			raise ValueError("Medium mode not implemented.")
+
+	cpdef init_tau(self):
+		return self._tstart
+	cpdef hydro_status(self):
+		return self.status
+	cpdef dtau(self):
+		return self._dt
+	cpdef boundary(self):
+		return self._xmin, self._xmax, self._ymin, self._ymax
+
+	cdef frame_inc_unpack(self):
+		self._tabs = {}
+		cdef vector[vector[vector[double]]] buff
+		buff.resize(2)
+		for key2 in self.info_keys:
+			for i in range(2):
+				key1 = self._step_keys[self._step_key_index+i]
+				buff[i] = self._f['Event'][key1][key2].value
+			self._tabs.update({key2:buff})
+		self._step_key_index += 1
+		if self._step_key_index == len(self._step_keys) - 1:
+			self.status = False
+
+	cpdef load_next(self, StaticProperty=None):
+		if self._mode == "dynamic":
+			self.frame_inc_unpack()
+		elif self._mode == 'static':
+			if StaticProperty == None:
+				raise ValueError("Requires static meidum properties")
+			else:
+				self.static_property = StaticProperty
+		else:
+			raise ValueError("Medium mode not implemented.")
+		self._tnow += self._dt
+
+	cpdef get_current_frame(self, key):
+		return np.array(self._tabs[key][0])
+
+	cpdef interpF(self, double tau, xvec, keys):
+		cdef double rt, nx, ny, rx, ry, gamma, buff, vz
+		cdef int ix, iy, i, j, k
+		if self._mode == "static":
+			return [self.static_property[key] for key in keys]
+		if self._mode == "dynamic":
+			if xvec[1] < self._xmin or xvec[1] > self._xmax \
+				or xvec[2] < self._ymin or xvec[2] > self._ymax:
+				return [0. for key in keys]
+			else:
+				result = []
+				rt = (tau - self._tnow)/self._dt
+				nx = (xvec[1] - self._xmin)/self._dx
+				ny = (xvec[2] - self._ymin)/self._dy
+				ix = <int>floor(nx)
+				rx = nx - ix
+				iy = <int>floor(ny)
+				ry = ny - iy
+				vz = xvec[3]/xvec[0]
+				for key in keys:
+					if key == 'Vz':
+						result.append(vz)
+					else:
+						for k in range(2):
+							for i in range(2):
+								for j in range(2):
+									self.interpcube[k][i][j] = \
+										self._tabs[key][k][ix+i][iy+j]
+						buff = finterp(self.interpcube, rt, rx, ry)
+						if key == 'Vx' or key == 'Vy':
+							gamma = 1.0/sqrt(1.0-vz*vz)
+							buff /= gamma
+						result.append(buff)
+				return result
 
 #-----------Production vertex sampler class-------------------------
 cdef class XY_sampler:
@@ -86,7 +238,7 @@ cdef class event:
 		# medium
 		self.fh = open("Histroy.dat", 'w')
 		self.mode = medium_flags['type']
-		self.hydro_reader = medium.Medium(medium_flags=medium_flags)
+		self.hydro_reader = Medium(medium_flags=medium_flags)
 		self.tau0 = self.hydro_reader.init_tau()
 		self.dtau = self.hydro_reader.dtau()
 		self.tau = self.tau0
@@ -98,7 +250,7 @@ cdef class event:
 
 		if self.transport == "LBT":
 			print("LBT mode")
-			self.lbt = HqEvo.HqEvo(options=physics_flags,
+			self.lbt = HqEvo.HqLBT(options=physics_flags,
 									table_folder=table_folder,
 									refresh_table=refresh_table)
 		elif self.transport == "LGV":
@@ -107,7 +259,7 @@ cdef class event:
 		elif self.transport == "Hybrid":
 			print("Hybrid mode")
 			self.lgv = HqLGV.HqLGV(options=physics_flags)
-			self.lbt = HqEvo.HqEvo(options=physics_flags,
+			self.lbt = HqEvo.HqLBT(options=physics_flags,
 									table_folder=table_folder,
 									refresh_table=refresh_table)
 
