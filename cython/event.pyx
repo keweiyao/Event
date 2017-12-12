@@ -424,3 +424,26 @@ cdef class event:
 
 	cpdef get_hydro_field(self, key):
 		return self.hydro_reader.get_current_frame(key)
+
+
+
+	cpdef output_oscar(self, filename):
+		cdef vector[particle].iterator it = self.active_HQ.begin()
+		cdef size_t i=0
+		with open(filename, 'w') as f:
+			line = ff.FortranRecordWriter('i10,19(2x,d12.6)')
+			while it != self.active_HQ.end():
+				f.write(line.write([deref(it).pid,
+					deref(it).p[1],deref(it).p[2],
+					deref(it).p[3],deref(it).p[0],
+					self.M,
+					deref(it).x[1],deref(it).x[2],
+					deref(it).x[3],deref(it).x[0],
+					deref(it).Tf,
+					deref(it).vcell[0], deref(it).vcell[1], deref(it).vcell[2],
+					deref(it).initp[1], deref(it).initp[2],
+					deref(it).initp[3], deref(it).initp[0],
+					deref(it).s1, deref(it).s2])+'\n')
+				i += 1
+				inc(it)
+		return
