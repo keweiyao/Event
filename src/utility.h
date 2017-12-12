@@ -46,7 +46,6 @@ struct particle{
 	std::vector<double> p;
 	std::vector<double> x;
 	double t_last_23, t_last_32;
-	int count22, count23, count32;
 	std::vector<double> initp;
 	std::vector<double> vcell;
 	double Tf, s1, s2;

@@ -24,7 +24,6 @@ cdef extern from "../src/utility.h":
 		vector[double] p
 		vector[double] x
 		double t_last_23, t_last_32
-		int count22, count23, count32
 		vector[double] initp
 		vector[double] vcell
 		double Tf, s1, s2
@@ -72,10 +71,10 @@ cdef double proper_time(vector[double] x):
 	return sqrt(x[0]**2 - x[3]**2)
 
 cdef class event:
-	cdef object hydro_reader, lbt, lgv
+	cdef object hydro_reader, lbt, lgv, fh
 	cdef str mode, transport
 	cdef double M, Tc
-	cdef vector[particle] active_HQ
+	cdef vector[particle] HQ_list
 	cdef vector[particle] frzout_HQ
 	cdef double tau0, dtau, tau
 
@@ -84,6 +83,7 @@ cdef class event:
 		if seed != None:
 			np.random.seed(seed)
 		# medium
+		self.fh = open("Histroy.dat", 'w')
 		self.mode = medium_flags['type']
 		self.hydro_reader = medium.Medium(medium_flags=medium_flags)
 		self.tau0 = self.hydro_reader.init_tau()
@@ -116,8 +116,8 @@ cdef class event:
 
 	# Initilization
 	cpdef initialize_HQ(self, NQ, init_flags):
-		self.active_HQ.clear()
-		self.active_HQ.resize(NQ)
+		self.HQ_list.clear()
+		self.HQ_list.resize(NQ)
 		cdef double x, y, z, s1, s2
 		# for A+B:
 		cdef double pT, phipt, rapidity, mT, t0
@@ -135,42 +135,61 @@ cdef class event:
 			pTmax = init_flags['pTmax']
 			pTmin = init_flags['pTmin']
 			ymax = init_flags['ymax']
-			ymin = init_flags['ymin']
 
 			print("Heavy quarks are freestreamed to {} fm/c".format(self.tau0))
-			it = self.active_HQ.begin()
+			it = self.HQ_list.begin()
 			X = []
 			Y = []
-			while it != self.active_HQ.end():
-				# Initialize momentum space
+			while it != self.HQ_list.end():
+				# Initialize momentum and spatial space
 				pT = np.random.rand()*(pTmax-pTmin) + pTmin
 				mT = sqrt(pT**2 + self.M**2)
 				phipt = np.random.rand()*2.*M_PI
-				rapidity = np.random.rand()*(ymax-ymin) + ymin
-				deref(it).p = [mT*cosh(rapidity), pT*cos(phipt), \
+				rapidity = np.random.rand()*ymax*2. - ymax
+				pcharm = [mT*cosh(rapidity), pT*cos(phipt), \
 							   pT*sin(phipt), mT*sinh(rapidity)]
-				# Initialize positional space at tau = 0+
+				panticharm = [mT*cosh(rapidity), -pT*cos(phipt), \
+							   -pT*sin(phipt), -mT*sinh(rapidity)]
 				x, y, s1, s2 = HQ_xy_sampler.sample_xy()
+				r0 = [0.0, x, y, 0.0]
+				t0 = self.tau0/sqrt(1. - (pcharm[3]/pcharm[0])**2)
 				X.append(x)
 				Y.append(y)
-				deref(it).x = [0.0, x, y, 0.]
+				# charm:
+				# Initialize positional space at tau = 0+
+				deref(it).p = pcharm
+				deref(it).x = r0
 				deref(it).s1 = s1
 				deref(it).s2 = s2
 				# free streaming to hydro starting time tau = tau0
-				t0 = self.tau0/sqrt(1. - (deref(it).p[3]/deref(it).p[0])**2)
-				deref(it).t_last_23 = t0;
-				deref(it).t_last_32 = t0;
 				freestream(it, t0)
-				# initialize counter
-				deref(it).count22 = 0
-				deref(it).count23 = 0
-				deref(it).count32 = 0
+				# set last interaction vertex (assumed to be hydro start time)
+				deref(it).t_last_23 = t0
+				deref(it).t_last_32 = t0
 				# initialize others
 				deref(it).freezeout = False
 				deref(it).initp = deref(it).p
 				deref(it).vcell = [0., 0., 0.]
 				deref(it).Tf = 0.
-				deref(it).pid = 4 # only charm quark, no anti-charm
+				deref(it).pid = 4
+				inc(it)
+				# anti-charm: only flip p^mu and pid
+				# Initialize positional space at tau = 0+
+				deref(it).p = panticharm
+				deref(it).x = r0
+				deref(it).s1 = s1
+				deref(it).s2 = s2
+				# free streaming to hydro starting time tau = tau0
+				freestream(it, t0)
+				# set last interaction vertex (assumed to be hydro start time)
+				deref(it).t_last_23 = t0
+				deref(it).t_last_32 = t0
+				# initialize others
+				deref(it).freezeout = False
+				deref(it).initp = deref(it).p
+				deref(it).vcell = [0., 0., 0.]
+				deref(it).Tf = 0.
+				deref(it).pid = 4
 				inc(it)
 			# check the variance of the sampling
 			stdx, stdy = np.std(X), np.std(Y)
@@ -180,9 +199,9 @@ cdef class event:
 			print "Initialize for box simulation"
 			pmax = init_flags['pmax']
 			L = init_flags['L']
-			it = self.active_HQ.begin()
+			it = self.HQ_list.begin()
 
-			while it != self.active_HQ.end():
+			while it != self.HQ_list.end():
 				p = np.random.uniform(0, pmax)
 				phipt = np.random.uniform(0, 2.*np.pi)
 				cospz = little_below_one*np.random.uniform(-1., 1.)
@@ -192,9 +211,6 @@ cdef class event:
 				deref(it).p = [sqrt(p**2+self.M**2), p*sinpz*cos(phipt), \
 								p*sinpz*sin(phipt), p*cospz]
 				deref(it).t_last_23 = 0.0; deref(it).t_last_32 = 0.0
-				deref(it).count22 = 0
-				deref(it).count23 = 0
-				deref(it).count32 = 0
 				deref(it).freezeout = False
 				deref(it).initp = [sqrt(p**2+self.M**2), p*sinpz*cos(phipt), \
 									p*sinpz*sin(phipt), p*cospz]
@@ -222,14 +238,14 @@ cdef class event:
 		cdef double t, x, y, z, tauQ
 		cdef vector[particle].iterator it
 		if self.mode == 'static':
-			it = self.active_HQ.begin()
-			while it != self.active_HQ.end():
+			it = self.HQ_list.begin()
+			while it != self.HQ_list.end():
 				while deref(it).x[0] <= self.tau:
 					self.perform_HQ_step(it)
 				inc(it)
 		elif self.mode == 'dynamic':
-			it = self.active_HQ.begin()
-			while it != self.active_HQ.end():
+			it = self.HQ_list.begin()
+			while it != self.HQ_list.end():
 				if not deref(it).freezeout:
 					tauQ = proper_time( deref(it).x )
 					while tauQ <= self.tau and not deref(it).freezeout:
@@ -278,7 +294,8 @@ cdef class event:
 		# how long has it should be evolved and the new momentum      #
 		###############################################################
 		# variables
-		cdef vector[double] p1_cell, p1_cell_star, p1_cell_new, p1_new, p1
+		cdef vector[double] p1_cell, p1_cell_star, p1_cell_new, p1_new, p1,\
+							k_gluon, k_gluon_cell = [0,0,0,0]
 		p1 = deref(it).p # this is the initial momentum in lab frame
 
 		# step<+0>: convert time[fm/c] to time[GeV^-1]
@@ -298,9 +315,11 @@ cdef class event:
 		elif self.transport == "LBT": # Boltzmann mode
 			channel, dt_cell = \
 				self.lbt.sample_channel(p1_cell[0], T, dt23_cell, dt32_cell)
-			p1_cell_new = p1_cell if channel < 0 else \
-							self.lbt_step(channel, dt_cell,
-										p1_cell, T, dt23_cell, dt32_cell)
+			if channel < 0:
+				p1_cell_new, k_gluon_cell = p1_cell, [0,0,0,0]
+			else:
+				p1_cell_new, k_gluon_cell = self.lbt_step(channel, dt_cell,
+											p1_cell, T, dt23_cell, dt32_cell)
 		elif self.transport == "Hybrid": # Hybrid mode
 			# Estimate a proper dt_cell using LBT scattering rates,
 			channel, dt_cell = \
@@ -308,8 +327,10 @@ cdef class event:
 			# determine which steps comes first
 			if rand()%2 == 0:	# lbt followed by lgv
 				# since lbt comes first, we can use the channel sampled above
-				p1_cell_star = p1_cell if channel < 0 else \
-								self.lbt_step(channel, dt_cell,
+				if channel < 0:
+					p1_cell_star, k_gluon_cell = p1_cell, [0,0,0,0]
+				else:
+					p1_cell_star, k_gluon_cell = self.lbt_step(channel, dt_cell,
 											p1_cell, T, dt23_cell, dt32_cell)
 				# then, perform lgv step
 				p1_cell_new = self.lgv_step(p1_cell_star, T, dt_cell)
@@ -321,27 +342,32 @@ cdef class event:
 				channel, _ = \
 					self.lbt.sample_channel(p1_cell_star[0], T,
 											dt23_cell, dt32_cell)
-				p1_cell_new = p1_cell if channel < 0 else \
-								self.lbt_step(channel, dt_cell,
+				if channel < 0:
+					p1_cell_new, k_gluon_cell = p1_cell, [0,0,0,0] 
+				else:
+					p1_cell_new, k_gluon_cell = self.lbt_step(channel, dt_cell,
 										p1_cell_star, T, dt23_cell, dt32_cell)
 		else:
 			raise ValueError("Transport mode has to be LGV, LBT or Hybrid")
 
 		# step<-1>: Boost back from p1_new(cell) to p1_new by vcell
 		boost4_By3_back(p1_new, p1_cell_new, vcell)
+		if k_gluon_cell[0] > 1e-9:
+			boost4_By3_back(k_gluon, k_gluon_cell, vcell)
+		else:
+			k_gluon = [0,0,0,0]
 		dtHQ = p1[0]/p1_cell[0]*dt_cell
 
 		# step<-0>: convert time[GeV^-1] to time[fm/c]
 		dtHQ *= GeVm1_to_fmc
 
-		# Count scattering and update last emission/absorption time
-		if channel == 0 or channel == 1:
-			deref(it).count22 += 1
-		elif channel == 2 or channel == 3:
-			deref(it).count23 += 1
+		#if channel >= 0:
+		#self.fh.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(dtHQ, channel, *p1_new, *k_gluon) )
+
+		# Update last emission/absorption time
+		if channel == 2 or channel == 3:
 			deref(it).t_last_23 = t + dtHQ
 		elif channel == 4 or channel == 5:
-			deref(it).count32 += 1
 			deref(it).t_last_32 = t + dtHQ
 		else:
 			pass
@@ -359,7 +385,7 @@ cdef class event:
 		return p1_cell_new
 
 	# this function needs to be cdef so that we can use the reference copy
-	cdef vector[double] lbt_step(self, int channel,
+	cdef (vector[double], vector[double]) lbt_step(self, int channel,
 			double dt_cell, vector[double] p1_cell,	double T,
 			double dt23_cell, double dt32_cell) :
 
@@ -435,7 +461,7 @@ cdef class event:
 			if channel in [4,5]:
 				rotate_back_from_D(k_gluon, self.lbt.IS[2],
 								p1_cell[1], p1_cell[2], p1_cell[3])
-			if chnnel in [2,3]:
+			elif channel in [2,3]:
 				# Rotate back to from (Com-Z) frame to (COM) frame
 				rotate_back_from_D(k_gluon, self.lbt.FS[2],
 									p1_com[1], p1_com[2], p1_com[3])
@@ -446,16 +472,17 @@ cdef class event:
 				# Rotate back to from (C-Z) frame to (C) frame
 				rotate_back_from_D(k_gluon, pbuffer,
 									p1_cell[1], p1_cell[2], p1_cell[3])
-
+			else:
+				k_gluon = [0,0,0,0]
 		# return updated momentum of heavy quark
-		return p1_cell_new
+		return p1_cell_new, k_gluon
 
 	cpdef HQ_hist(self):
-		cdef vector[particle].iterator it = self.active_HQ.begin()
+		cdef vector[particle].iterator it = self.HQ_list.begin()
 		cdef vector[ vector[double] ] p, x
 		p.clear()
 		x.clear()
-		while it != self.active_HQ.end():
+		while it != self.HQ_list.end():
 			p.push_back(deref(it).p)
 			x.push_back(deref(it).x)
 			inc(it)
@@ -463,9 +490,9 @@ cdef class event:
 
 	# Keep the direction of motion, rescale the energy of each heavy quark to E0
 	cpdef reset_HQ_energy(self, E0):
-		cdef vector[particle].iterator it = self.active_HQ.begin()
+		cdef vector[particle].iterator it = self.HQ_list.begin()
 		cdef double pabs_new, pabs_old, px, py, pz
-		while it != self.active_HQ.end():
+		while it != self.HQ_list.end():
 			ratio = sqrt( (E0**2 - self.M**2)/(deref(it).p[0]**2 - self.M**2) )
 			px = deref(it).p[1]*ratio
 			py = deref(it).p[2]*ratio
@@ -475,8 +502,8 @@ cdef class event:
 
 	# Reset heavy quark time and last interacting time to the current sys time
 	cpdef reset_HQ_time(self):
-		cdef vector[particle].iterator it = self.active_HQ.begin()
-		while it != self.active_HQ.end():
+		cdef vector[particle].iterator it = self.HQ_list.begin()
+		while it != self.HQ_list.end():
 			deref(it).x[0] = self.tau
 			deref(it).t_last_23 = self.tau
 			deref(it).t_last_32 = self.tau
